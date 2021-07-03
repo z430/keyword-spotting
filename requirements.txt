@@ -1,0 +1,15 @@
+h5py==2.10.0
+Keras
+librosa==0.8.0
+matplotlib==3.3.1
+numpy==1.19.1
+pandas==1.1.0
+Pillow==7.2.0
+PyAudio==0.2.11
+pycochleagram @ git+https://github.com/z430/pycochleagram.git@45420d969047781933a91281592f46befcc3f48f
+pydub==0.24.1
+python-speech-features==0.6
+scikit-learn==0.23.2
+scipy==1.5.2
+tensorflow
+tqdm==4.48.2
