@@ -105,7 +105,7 @@ class GetData:
             try:
                 filepath, _ = urllib.request.urlretrieve(data_url, filepath, _progress)
             except:
-                print("Failed to download URL: %s to folder: %s", data_url, filepath)
+                print(f"Failed to download URL: {data_url} to folder: {filepath}")
                 print(
                     "Please make sure you have enough free space and"
                     " an internet connection"
@@ -113,7 +113,7 @@ class GetData:
                 raise
             print()
             statinfo = os.stat(filepath)
-            print("Successfully downloaded %s (%d bytes)", filename, statinfo.st_size)
+            print(f"Successfully downloaded {filename} ({statinfo.st_size} bytes)")
             tarfile.open(filepath, "r:gz").extractall(dest_directory)
 
     def which_set(self, filename, validation_percentage, testing_percentage):

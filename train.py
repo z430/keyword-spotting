@@ -51,10 +51,10 @@ def main():
         config={
             "learning_rate": 0.005,
             "batch_size": 16,
-            "epochs": 100,
+            "epochs": 1,
             "loss_function": "sparse_categorical_crossentropy",
             "architecture": "simpleCNN",
-            "wanted_words": wanted_words.split(","),
+            "wanted_words": wanted_words,
         },
     )
 
@@ -65,6 +65,7 @@ def main():
 
     training_files = features.get_datafiles("training")
     validation_files = features.get_datafiles("validation")
+    testing_files = features.get_datafiles("testing")
 
     # transform the list dicts into dataframe
     training_data = pd.DataFrame(training_files)
@@ -77,8 +78,14 @@ def main():
         features.word_to_index[label] for label in validation_data["label"]
     ]
 
+    testing_data = pd.DataFrame(testing_files)
+    testing_data["label"] = [
+        features.word_to_index[label] for label in testing_data["label"]
+    ]
+
     training_ds = preprocess_dataset(training_data)
     validation_ds = preprocess_dataset(validation_data)
+    testing_ds = preprocess_dataset(testing_data)
 
     training_ds = training_ds.shuffle(buffer_size=100)
     validation_ds = validation_ds.shuffle(buffer_size=100)
@@ -119,15 +126,26 @@ def main():
     model.compile(
         optimizer=tf.keras.optimizers.Adam(),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=["accuracy"],
+        metrics=[
+            "accuracy",
+            tf.keras.metrics.AUC(),
+            tf.keras.metrics.FalsePositives(),
+            tf.keras.metrics.FalseNegatives(),
+        ],
     )
+
+    early_stopping = tf.keras.callbacks.EarlyStopping(patience=10)
 
     history = model.fit(
         training_ds,
         validation_data=validation_ds,
         epochs=config.epochs,
-        callbacks=[WandbCallback()],
+        callbacks=[early_stopping, WandbCallback()],
     )
+
+    # test the model
+    az = model.evaluate(testing_ds)
+    print(az)
 
 
 if __name__ == "__main__":
