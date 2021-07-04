@@ -103,14 +103,9 @@ def main():
     num_labels = len(features.words_list)
     print(f"Input Shape: {input_shape}, len labels: {num_labels}")
 
-    norm_layer = preprocessing.Normalization()
-    norm_layer.adapt(training_ds.map(lambda x, _: x))
-
     model = models.Sequential(
         [
             layers.Input(shape=input_shape),
-            preprocessing.Resizing(32, 32),
-            norm_layer,
             layers.Conv2D(32, 3, activation="relu"),
             layers.Conv2D(64, 3, activation="relu"),
             layers.MaxPooling2D(),
