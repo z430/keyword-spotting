@@ -42,6 +42,8 @@ class KeywordSpottingDataset(Dataset):
         waveform = self.data.audio_transform(filename, label)
         speech_feature = psf.mfcc(waveform, 16000)
         speech_feature = torch.from_numpy(speech_feature)
+        speech_feature = speech_feature.unsqueeze(0)
+
         return speech_feature, label
 
 
@@ -62,6 +64,8 @@ if __name__ == "__main__":
     kws_training_data = KeywordSpottingDataset(
         root_dir=datadir, wanted_words=wanted_words
     )
+
+    print(iter(next(kws_training_data)))
     print(len(kws_training_data))
     for i in range(len(kws_training_data)):
         sample = kws_training_data[i]

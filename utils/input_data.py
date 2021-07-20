@@ -202,7 +202,7 @@ class GetData:
         all_words = {}
         # Look through all the subfolders to find audio samples
         search_path = os.path.join(self.data_dir, "*", "*.wav")
-        for wav_path in tqdm.tqdm(glob.glob(search_path)):
+        for wav_path in tqdm.tqdm(glob.glob(search_path), desc=f"Prepare data index"):
             _, word = os.path.split(os.path.dirname(wav_path))
             word = word.lower()
             # Treat the '_background_noise_' folder as a special case, since we expect
