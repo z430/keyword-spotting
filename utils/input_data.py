@@ -13,19 +13,17 @@ import re
 import sys
 import tarfile
 import urllib
+import tqdm
 
 import librosa
 import python_speech_features as psf
 import numpy as np
-import tensorflow as tf
-import tqdm
 
 
 class GetData:
-    def __init__(self, prepare_data=True, wanted_words="marvin", feature="cgram"):
+    def __init__(self, wanted_words=None, data_dir=None):
 
         # don't change this parameter
-        self.prepare_data = prepare_data
         self.MAX_NUM_WAVS_PER_CLASS = 2 ** 27 - 1  # ~134MB
         self.RANDOM_SEED = 59185
         self.SILENCE_INDEX = 0
@@ -37,8 +35,8 @@ class GetData:
         self.data_url = (
             "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
         )
-        self.data_dir = "data/train"
-        if os.path.isdir(self.data_dir):
+        self.data_dir = data_dir
+        if os.path.exists(self.data_dir):
             self.maybe_download_and_extract_dataset(self.data_url, self.data_dir)
         else:
             os.makedirs(self.data_dir)
@@ -58,7 +56,7 @@ class GetData:
         self.unknown_percentage = 10.0
         self.testing_percentage = 10.0
         self.validation_percentage = 10.0
-        self.wanted_words = wanted_words.split(",")
+        self.wanted_words = wanted_words
 
         # initialization
         self.words_list = self.prepare_word_list(self.wanted_words)
@@ -183,16 +181,16 @@ class GetData:
         labels for each file based on the name of the subdirectory it belongs to,
         and uses a stable hash to assign it to a data set partition.
         Args:
-          silence_percentage: How much of the resulting data should be background.
-          unknown_percentage: How much should be audio outside the wanted classes.
-          wanted_words: Labels of the classes we want to be able to recognize.
-          validation_percentage: How much of the data set to use for validation.
-          testing_percentage: How much of the data set to use for testing.
+            silence_percentage: How much of the resulting data should be background.
+            unknown_percentage: How much should be audio outside the wanted classes.
+            wanted_words: Labels of the classes we want to be able to recognize.
+            validation_percentage: How much of the data set to use for validation.
+            testing_percentage: How much of the data set to use for testing.
         Returns:
-          Dictionary containing a list of file information for each set partition,
-          and a lookup map for each class to determine its numeric index.
+            Dictionary containing a list of file information for each set partition,
+            and a lookup map for each class to determine its numeric index.
         Raises:
-          Exception: If expected files are not found.
+            Exception: If expected files are not found.
         """
         # Make sure the shuffling and picking of unknowns is deterministic.
         random.seed(self.RANDOM_SEED)
@@ -204,7 +202,7 @@ class GetData:
         all_words = {}
         # Look through all the subfolders to find audio samples
         search_path = os.path.join(self.data_dir, "*", "*.wav")
-        for wav_path in glob.glob(search_path):
+        for wav_path in tqdm.tqdm(glob.glob(search_path)):
             _, word = os.path.split(os.path.dirname(wav_path))
             word = word.lower()
             # Treat the '_background_noise_' folder as a special case, since we expect
@@ -278,9 +276,9 @@ class GetData:
         be used. If the folder does exist, but it's empty, that's treated as an
         error.
         Returns:
-          List of raw PCM-encoded audio samples of background noise.
+        List of raw PCM-encoded audio samples of background noise.
         Raises:
-          Exception: If files aren't found in the folder.
+        Exception: If files aren't found in the folder.
         """
         self.background_data = []
         background_dir = os.path.join(self.data_dir, self.BACKGROUND_NOISE_DIR_NAME)
@@ -299,7 +297,7 @@ class GetData:
     def get_datafiles(self, mode):
         return self.data_index[mode]
 
-    def audio_transform(self, filename, label):
+    def audio_transform(self, filename: str, label: int) -> np.array:
         """audio_transform.
 
         :param filename: tf string audio path
@@ -307,16 +305,14 @@ class GetData:
         """
         # print(filename, label)
         # read audio with librosa
-        audio, sample_rate = librosa.load(
-            filename.numpy().decode("UTF-8"), sr=self.sample_rate
-        )
+        audio, sample_rate = librosa.load(filename, sr=self.sample_rate)
         # fix the audio length
         audio = librosa.util.fix_length(audio, self.desired_samples)
         # preemphasis -> make the audio gain higher
         audio = psf.sigproc.preemphasis(audio)
 
         # if the label is silence make the audio volume to 0
-        if label.numpy() == self.SILENCE_INDEX:
+        if label == self.SILENCE_INDEX:
             audio = audio * 0
 
         # audio augmentation
@@ -335,7 +331,7 @@ class GetData:
         )
 
         # 2. select noise type and randomly select how big the volume is
-        if self.use_background_noise or label.numpy() == self.SILENCE_INDEX:
+        if self.use_background_noise or label == self.SILENCE_INDEX:
             background_index = np.random.randint(len(self.background_data))
             background_samples = self.background_data[background_index]
             background_offset = np.random.randint(
@@ -345,7 +341,7 @@ class GetData:
                 background_offset : (background_offset + self.desired_samples)
             ]
             background_reshaped = background_clipped.reshape(self.desired_samples)
-            if label.numpy() == self.SILENCE_INDEX:
+            if label == self.SILENCE_INDEX:
                 background_volume = np.random.uniform(0, 1)
             elif np.random.uniform(0, 1) < self.background_frequency:
                 background_volume = np.random.uniform(0, self.background_volume)

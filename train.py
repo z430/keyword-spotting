@@ -1,146 +1,59 @@
 """ Training """
-
-from logging import BufferingFormatter
-import random
-import time
-
+import logging
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.layers.experimental import preprocessing
-from tensorflow.keras import layers
-from tensorflow.keras import models
+import torch
+from torch.utils.data import DataLoader
+import torch.optim as optim
 
-import pandas as pd
-import wandb
-from wandb.keras import WandbCallback
+from models import models
+from utils import dataset
 
-from speech_features import SpeechFeatures
-import input_data
-
-wanted_words = "left,right,forward,backward,stop,go"
-features = input_data.GetData(wanted_words=wanted_words, feature="mfcc")
-AUTOTUNE = tf.data.experimental.AUTOTUNE
-
-
-def rosa_read(filename, label):
-    waveform = tf.py_function(features.audio_transform, [filename, label], [tf.float32])
-    waveform = tf.convert_to_tensor(waveform)
-    waveform = tf.squeeze(waveform, axis=0)
-    return waveform, label
-
-
-def get_spectrogram(waveform, label):
-    waveform = tf.cast(waveform, tf.float32)
-    spectrogram = tf.signal.stft(waveform, frame_length=255, frame_step=128)
-    spectrogram = tf.abs(spectrogram)
-    spectrogram = tf.expand_dims(spectrogram, axis=-1)
-    return spectrogram, label
-
-
-def preprocess_dataset(dataset):
-    files_ds = tf.data.Dataset.from_tensor_slices((dataset["file"], dataset["label"]))
-    output_ds = files_ds.map(rosa_read, num_parallel_calls=AUTOTUNE)
-    output_ds = output_ds.map(get_spectrogram, num_parallel_calls=AUTOTUNE)
-    return output_ds
+# global parameter
+log = logging.getLogger(__name__)
 
 
 def main():
-    """------------------- Features Configuration -------------------"""
-    wandb.init(
-        project="tf-keywork-spotting",
-        config={
-            "learning_rate": 0.005,
-            "batch_size": 16,
-            "epochs": 1,
-            "loss_function": "sparse_categorical_crossentropy",
-            "architecture": "simpleCNN",
-            "wanted_words": wanted_words,
-        },
-    )
-
-    config = wandb.config
-
-    # initialize keras
-    tf.keras.backend.clear_session()
-
-    training_files = features.get_datafiles("training")
-    validation_files = features.get_datafiles("validation")
-    testing_files = features.get_datafiles("testing")
-
-    # transform the list dicts into dataframe
-    training_data = pd.DataFrame(training_files)
-    training_data["label"] = [
-        features.word_to_index[label] for label in training_data["label"]
+    datadir = "../data/train"
+    wanted_words = [
+        "yes",
+        "no",
+        "up",
+        "down",
+        "left",
+        "right",
+        "on",
+        "off",
+        "stop",
+        "go",
     ]
 
-    validation_data = pd.DataFrame(validation_files)
-    validation_data["label"] = [
-        features.word_to_index[label] for label in validation_data["label"]
-    ]
+    # get device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    log.info(f"Using {device} device")
 
-    testing_data = pd.DataFrame(testing_files)
-    testing_data["label"] = [
-        features.word_to_index[label] for label in testing_data["label"]
-    ]
-
-    training_ds = preprocess_dataset(training_data)
-    validation_ds = preprocess_dataset(validation_data)
-    testing_ds = preprocess_dataset(testing_data)
-
-    training_ds = training_ds.shuffle(buffer_size=100)
-    validation_ds = validation_ds.shuffle(buffer_size=100)
-
-    training_ds = training_ds.batch(config.batch_size)
-    validation_ds = validation_ds.batch(config.batch_size)
-
-    training_ds = training_ds.cache().prefetch(AUTOTUNE)
-    validation_ds = validation_ds.cache().prefetch(AUTOTUNE)
-
-    for spectrogram, labels in training_ds.take(1):
-        input_shape = spectrogram.shape[1:]
-        print(input_shape, labels)
-
-    num_labels = len(features.words_list)
-    print(f"Input Shape: {input_shape}, len labels: {num_labels}")
-
-    model = models.Sequential(
-        [
-            layers.Input(shape=input_shape),
-            layers.Conv2D(32, 3, activation="relu"),
-            layers.Conv2D(64, 3, activation="relu"),
-            layers.MaxPooling2D(),
-            layers.Dropout(0.25),
-            layers.Flatten(),
-            layers.Dense(128, activation="relu"),
-            layers.Dropout(0.5),
-            layers.Dense(num_labels),
-        ]
+    kws_training_data = dataset.KeywordSpottingDataset(
+        root_dir=datadir, wanted_words=wanted_words, mode="training"
+    )
+    kws_validation_data = dataset.KeywordSpottingDataset(
+        root_dir=datadir, wanted_words=wanted_words, mode="validation"
     )
 
-    model.summary()
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(),
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[
-            "accuracy",
-            tf.keras.metrics.AUC(),
-            tf.keras.metrics.FalsePositives(),
-            tf.keras.metrics.FalseNegatives(),
-        ],
+    train_dataloader = DataLoader(
+        kws_training_data, batch_size=2, shuffle=True, pin_memory=True
     )
 
-    early_stopping = tf.keras.callbacks.EarlyStopping(patience=10)
-
-    history = model.fit(
-        training_ds,
-        validation_data=validation_ds,
-        epochs=config.epochs,
-        callbacks=[early_stopping, WandbCallback()],
+    validation_dataloader = DataLoader(
+        kws_validation_data, batch_size=2, shuffle=True, pin_memory=True
     )
 
-    # test the model
-    az = model.evaluate(testing_ds)
-    print(az)
+    # define the model
+    len_classes = len(kws_training_data.classes)
+    log.info(f"len classes -> {len_classes}")
+
+    # check dataloader
+    for i, (data, label) in enumerate(train_dataloader):
+        print(i, data.shape, label.shape)
+    # net = models.LinearModel(input_size=[0, 0], len_classes=len_classes)
 
 
 if __name__ == "__main__":
