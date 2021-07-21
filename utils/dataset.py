@@ -1,14 +1,44 @@
+from logging import root
+from typing import Union, List, Dict, Optional
 import os
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, dataloader
 import python_speech_features as psf
-import librosa
+import pytorch_lightning as pl
+
 from . import input_data
 
 # ignore warnings
 import warnings
 
 warnings.filterwarnings("ignore")
+
+
+class LitKeywordSpotting(pl.LightningDataModule):
+    def __init__(self, root_dir, wanted_words, batch_size):
+        super().__init__()
+        self.train_data = KeywordSpottingDataset(
+            root_dir, wanted_words=wanted_words, mode="training"
+        )
+        self.validation_data = KeywordSpottingDataset(
+            root_dir, wanted_words=wanted_words, mode="validation"
+        )
+        self.test_data = KeywordSpottingDataset(
+            root_dir, wanted_words=wanted_words, mode="testing"
+        )
+
+        self.batch_size = batch_size
+        self.total_clases = len(self.train_data.classes)
+        self.input_size = (next(iter(self.train_data)))[0].shape
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(self.train_data, batch_size=self.batch_size)
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(self.validation_data, batch_size=self.batch_size)
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(self.test_data, batch_size=32)
 
 
 class KeywordSpottingDataset(Dataset):
@@ -42,7 +72,7 @@ class KeywordSpottingDataset(Dataset):
         waveform = self.data.audio_transform(filename, label)
         speech_feature = psf.mfcc(waveform, 16000)
         speech_feature = torch.from_numpy(speech_feature)
-        speech_feature = speech_feature.unsqueeze(0)
+        speech_feature = speech_feature.unsqueeze(0).float()
 
         return speech_feature, label
 
