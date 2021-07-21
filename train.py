@@ -7,6 +7,9 @@ from utils.dataset import LitKeywordSpotting
 
 
 def main():
+
+    pl.seed_everything(52, workers=True)
+
     datadir = "../data/train"
     wanted_words = [
         "yes",
@@ -34,7 +37,12 @@ def main():
 
     early_stopping = EarlyStopping("val_loss")
 
-    trainer = pl.Trainer(logger=wandb_logger, callbacks=[early_stopping])
+    trainer = pl.Trainer(
+        logger=wandb_logger,
+        callbacks=[early_stopping],
+        deterministic=True,
+        weights_save_path="checkpoints/",
+    )
     wandb_logger.watch(net)
     trainer.fit(net, lit_data)
 
