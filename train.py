@@ -1,51 +1,15 @@
 """ Training """
-
-from logging import BufferingFormatter
-import random
-import time
-
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers.experimental import preprocessing
 from tensorflow.keras import layers
 from tensorflow.keras import models
 
-import pandas as pd
 import wandb
 from wandb.keras import WandbCallback
 
-from speech_features import SpeechFeatures
-import input_data
-
-wanted_words = "left,right,forward,backward,stop,go"
-features = input_data.GetData(wanted_words=wanted_words, feature="mfcc")
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
-def rosa_read(filename, label):
-    waveform = tf.py_function(features.audio_transform, [filename, label], [tf.float32])
-    waveform = tf.convert_to_tensor(waveform)
-    waveform = tf.squeeze(waveform, axis=0)
-    return waveform, label
-
-
-def get_spectrogram(waveform, label):
-    waveform = tf.cast(waveform, tf.float32)
-    spectrogram = tf.signal.stft(waveform, frame_length=255, frame_step=128)
-    spectrogram = tf.abs(spectrogram)
-    spectrogram = tf.expand_dims(spectrogram, axis=-1)
-    return spectrogram, label
-
-
-def preprocess_dataset(dataset):
-    files_ds = tf.data.Dataset.from_tensor_slices((dataset["file"], dataset["label"]))
-    output_ds = files_ds.map(rosa_read, num_parallel_calls=AUTOTUNE)
-    output_ds = output_ds.map(get_spectrogram, num_parallel_calls=AUTOTUNE)
-    return output_ds
-
-
-def main():
-    """------------------- Features Configuration -------------------"""
+def main() -> None:
     wandb.init(
         project="tf-keywork-spotting",
         config={
@@ -60,47 +24,6 @@ def main():
 
     config = wandb.config
 
-    # initialize keras
-    tf.keras.backend.clear_session()
-
-    training_files = features.get_datafiles("training")
-    validation_files = features.get_datafiles("validation")
-    testing_files = features.get_datafiles("testing")
-
-    # transform the list dicts into dataframe
-    training_data = pd.DataFrame(training_files)
-    training_data["label"] = [
-        features.word_to_index[label] for label in training_data["label"]
-    ]
-
-    validation_data = pd.DataFrame(validation_files)
-    validation_data["label"] = [
-        features.word_to_index[label] for label in validation_data["label"]
-    ]
-
-    testing_data = pd.DataFrame(testing_files)
-    testing_data["label"] = [
-        features.word_to_index[label] for label in testing_data["label"]
-    ]
-
-    training_ds = preprocess_dataset(training_data)
-    validation_ds = preprocess_dataset(validation_data)
-    testing_ds = preprocess_dataset(testing_data)
-
-    training_ds = training_ds.shuffle(buffer_size=100)
-    validation_ds = validation_ds.shuffle(buffer_size=100)
-
-    training_ds = training_ds.batch(config.batch_size)
-    validation_ds = validation_ds.batch(config.batch_size)
-
-    training_ds = training_ds.cache().prefetch(AUTOTUNE)
-    validation_ds = validation_ds.cache().prefetch(AUTOTUNE)
-
-    for spectrogram, labels in training_ds.take(1):
-        input_shape = spectrogram.shape[1:]
-        print(input_shape, labels)
-
-    num_labels = len(features.words_list)
     print(f"Input Shape: {input_shape}, len labels: {num_labels}")
 
     model = models.Sequential(

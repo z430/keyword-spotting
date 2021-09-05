@@ -22,7 +22,7 @@ import tqdm
 
 
 class GetData:
-    def __init__(self, prepare_data=True, wanted_words="marvin", feature="cgram"):
+    def __init__(self, prepare_data=True, wanted_words="marvin"):
 
         # don't change this parameter
         self.prepare_data = prepare_data
@@ -299,13 +299,16 @@ class GetData:
     def get_datafiles(self, mode):
         return self.data_index[mode]
 
-    def audio_transform(self, filename, label):
-        """audio_transform.
+    def audio_transform(self, filename: tf.string, label: tf.string) -> tf.float32:
+        """Read audio and load audio
 
-        :param filename: tf string audio path
-        :param label: the label of audio
+        Args:
+            filename (tf.string): path of audio
+            label (tf.string): the label name of the audio
+
+        Returns:
+            tf.float32: transformed audio
         """
-        # print(filename, label)
         # read audio with librosa
         audio, sample_rate = librosa.load(
             filename.numpy().decode("UTF-8"), sr=self.sample_rate

@@ -1,0 +1,14 @@
+wanted_words:
+  - "yes"
+  - "no"
+  - "up"
+  - "down"
+  - "left"
+  - "right"
+  - "on"
+  - "off"
+  - "stop"
+  - "go"
+features: mfcc
+sample_rate: 16000
+sample_size: 16000

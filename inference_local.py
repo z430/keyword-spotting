@@ -33,22 +33,35 @@ START_OFFSET = int(NUM_WINDOW_CHUNKS * CHUNK_DURATION_MS * 0.5 * RATE)
 vad = webrtcvad.Vad(1)
 
 pa = pyaudio.PyAudio()
-stream = pa.open(format=FORMAT,
-                 channels=CHANNELS,
-                 rate=RATE,
-                 input=True,
-                 start=False,
-                 # input_device_index=2,
-                 frames_per_buffer=CHUNK_SIZE)
+stream = pa.open(
+    format=FORMAT,
+    channels=CHANNELS,
+    rate=RATE,
+    input=True,
+    start=False,
+    # input_device_index=2,
+    frames_per_buffer=CHUNK_SIZE,
+)
 
 got_a_sentence = False
 leave = False
 
 # initialize inference
 feature_extractor = au.SpeechFeatures()
-wanted_words = ['_silence_', '_unknown_', 'backward', 'forward', 'go', 'left', 'right', 'stop']
+wanted_words = [
+    "_silence_",
+    "_unknown_",
+    "backward",
+    "forward",
+    "go",
+    "left",
+    "right",
+    "stop",
+]
 # import keras model
-model = keras.models.load_model('models/vgg_19_model_mfcc_49x40_left_right_forward_backward_stop_go.hdf5')
+model = keras.models.load_model(
+    "models/vgg_19_model_mfcc_49x40_left_right_forward_backward_stop_go.hdf5"
+)
 model.summary()
 
 
@@ -78,8 +91,8 @@ def handle_int(sig, chunk):
 def record_to_file(path, data, sample_width):
     "Records from the microphone and outputs the resulting data to 'path'"
     # sample_width, data = record()
-    data = pack('<' + ('h' * len(data)), *data)
-    wf = wave.open(path, 'wb')
+    data = pack("<" + ("h" * len(data)), *data)
+    wf = wave.open(path, "wb")
     wf.setnchannels(1)
     wf.setsampwidth(sample_width)
     wf.setframerate(RATE)
@@ -91,7 +104,7 @@ def normalize(snd_data):
     "Average the volume out"
     MAXIMUM = 16384  # 16384
     times = float(MAXIMUM) / max(abs(i) for i in snd_data)
-    r = array('h')
+    r = array("h")
     for i in snd_data:
         r.append(int(i * times))
     return r
@@ -108,9 +121,9 @@ while not leave:
 
     ring_buffer_flags_end = [0] * NUM_WINDOW_CHUNKS_END
     ring_buffer_index_end = 0
-    buffer_in = ''
+    buffer_in = ""
     # WangS
-    raw_data = array('h')
+    raw_data = array("h")
     index = 0
     start_point = 0
     StartTime = time.time()
@@ -119,7 +132,7 @@ while not leave:
     while not got_a_sentence and not leave:
         chunk = stream.read(CHUNK_SIZE)
         # add WangS
-        raw_data.extend(array('h', chunk))
+        raw_data.extend(array("h", chunk))
         index += CHUNK_SIZE
         TimeUse = time.time() - StartTime
 
@@ -155,7 +168,7 @@ while not leave:
 
         sys.stdout.flush()
 
-    sys.stdout.write('\n')
+    sys.stdout.write("\n")
 
     stream.stop_stream()
     got_a_sentence = False
