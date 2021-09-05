@@ -12,3 +12,5 @@ wanted_words:
 features: mfcc
 sample_rate: 16000
 sample_size: 16000
+epochs: 10
+batch_size: 2

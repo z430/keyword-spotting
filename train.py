@@ -2,27 +2,16 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
+from tensorflow.python.keras.utils.conv_utils import conv_input_length
 
-import wandb
-from wandb.keras import WandbCallback
+from utils.config import ConfigParser
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def main() -> None:
-    wandb.init(
-        project="tf-keywork-spotting",
-        config={
-            "learning_rate": 0.005,
-            "batch_size": 16,
-            "epochs": 1,
-            "loss_function": "sparse_categorical_crossentropy",
-            "architecture": "simpleCNN",
-            "wanted_words": wanted_words,
-        },
-    )
-
-    config = wandb.config
+    config = ConfigParser("./data/config.yaml")
+    hyperparameter = conv_input_length("./data/hyp.yaml")
 
     print(f"Input Shape: {input_shape}, len labels: {num_labels}")
 

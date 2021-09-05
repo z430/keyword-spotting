@@ -1,43 +1,33 @@
-from typing import List
-import numpy as np
+from typing import Tuple
 import tensorflow as tf
-import pandas as pd
-
-from input_data import GetData
 
 
-class TFDataLoader:
-    def __init__(self, data: GetData) -> None:
-        self.data = data
-        print(self.data)
+def decode_audio(audio_name: str) -> Tuple[tf.Tensor, tf.Tensor]:
 
-    def read_audio(self, filename: str, label: int) -> List[tf.float32, str]:
-        wave = tf.py_function(
-            self.data.audio_transform, [filename, label], [tf.float32]
-        )
-        wave = tf.convert_to_tensor(wave)
-        wave = tf.squeeze(wave, axis=0)
-        return wave, label
+    """Decode audio from tf
+    The audio samples already normalized [-1, 1]
 
-    def load_dataset(self, dataset: pd.DataFrame) -> tf.data.Dataset:
-        ds = tf.data.Dataset.from_tensor_slices((dataset["file"], dataset["label"]))
-        ds = ds.map(self.read_audio, num_parallel_calls=AUTOTUNE)
-        return ds
+    Args:
+        audio_name (str): path of audio
 
-    def get_data(self, mode: str):
-        """[summary]
+    Returns:
+        Tuple[tf.float32, tf.int32]: the audio samples and the sample rate
+    """
+    audio_binary = tf.io.read_file(audio_name)
+    waveform, sample_rate = tf.audio.decode_wav(audio_binary)
+    waveform = tf.squeeze(waveform, axis=-1)
+    return waveform, sample_rate
 
-        Args:
-            mode (str): [description]
 
-        Returns:
-            [type]: [description]
-        """
-        if mode not in ["training", "validation", "testing"]:
-            print(f"ERROR: {mode} not fount")
-            return
+def audio_transform(audio_name: str, audio_label: str) -> tf.float32:
+    """Read audio and load the audio file for training
 
-        files = self.data.get_datafiles(mode)
-        files = pd.DataFrame(files)
-        processed_ds = self.load_dataset(files)
-        return processed_ds
+    Args:
+        audio_name (str): path of audio
+        audio_label (str): the label of the audio
+
+    Returns:
+        tf.float32: transformed audio with fixed length
+    """
+    # read audio with tf
+    waveform, sr = decode_audio(audio_name=audio_name)
