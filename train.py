@@ -2,16 +2,29 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
-from tensorflow.python.keras.utils.conv_utils import conv_input_length
 
 from utils.config import ConfigParser
+from utils.input_data import GetData
+from utils.dataloaders import SpeechCommandLoader
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def main() -> None:
     config = ConfigParser("./data/config.yaml")
-    hyperparameter = conv_input_length("./data/hyp.yaml")
+    hyperparameter = ConfigParser("./data/hyp.yaml")
+
+    # dataset
+    get_data = GetData(wanted_words=config.wanted_words)
+    dataloader = SpeechCommandLoader(
+        config.sample_rate, config.sample_size, autotune=AUTOTUNE
+    )
+
+    training_dataset = get_data.transform_df(get_data.training)
+    validation_dataset = get_data.transform_df(get_data.validation)
+
+    training_loader = dataloader(training_dataset)
+    validation_loader = dataloader(validation_dataset)
 
     print(f"Input Shape: {input_shape}, len labels: {num_labels}")
 

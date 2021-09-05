@@ -12,9 +12,11 @@ import random
 import re
 import sys
 import tarfile
+from typing import Dict
 import urllib
 
 import librosa
+import pandas as pd
 import python_speech_features as psf
 import numpy as np
 import tensorflow as tf
@@ -37,7 +39,7 @@ class GetData:
         self.data_url = (
             "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
         )
-        self.data_dir = "data/train"
+        self.data_dir = "../data/train"
         if os.path.isdir(self.data_dir):
             self.maybe_download_and_extract_dataset(self.data_url, self.data_dir)
         else:
@@ -58,7 +60,7 @@ class GetData:
         self.unknown_percentage = 10.0
         self.testing_percentage = 10.0
         self.validation_percentage = 10.0
-        self.wanted_words = wanted_words.split(",")
+        self.wanted_words = wanted_words
 
         # initialization
         self.words_list = self.prepare_word_list(self.wanted_words)
@@ -70,6 +72,13 @@ class GetData:
             self.testing_percentage,
         )
         self.prepare_background_data()
+        for k, v in self.data_index.items():
+            setattr(self, k, v)
+
+    def transform_df(self, dataset: Dict) -> pd.DataFrame:
+        dataset = pd.DataFrame(dataset)
+        dataset.label = [self.word_to_index[label] for label in dataset.label]
+        return dataset
 
     @staticmethod
     def prepare_word_list(wanted_words):
@@ -295,9 +304,6 @@ class GetData:
             self.background_data.append(wav_data)
         if not self.background_data:
             raise Exception("No background wav files were found in " + search_path)
-
-    def get_datafiles(self, mode):
-        return self.data_index[mode]
 
     def audio_transform(self, filename: tf.string, label: tf.string) -> tf.float32:
         """Read audio and load audio
