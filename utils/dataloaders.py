@@ -1,22 +1,36 @@
 from typing import Tuple
-import tensorflow as tf
+
 import pandas as pd
+import tensorflow as tf
+from tensorflow._api.v2 import audio, data
 
 
 class SpeechCommandLoader:
     def __init__(
-        self, sample_rate, sample_size, autotune, feature="spectrogram"
+        self, sample_rate, audio_length, batch_size, autotune, feature="spectrogram"
     ) -> None:
         self.sample_rate = sample_rate
-        self.sample_size = sample_size
+        self.sample_size = audio_length
         self.feature = feature
         self.autotune = autotune
+        self.batch_size = batch_size
+        self.shuffle = True
 
-    def __call__(self, dataset: pd.DataFrame) -> tf.data.Dataset:
+    def to_tf_dataset(self, dataset: pd.DataFrame) -> tf.data.Dataset:
         dataset = tf.data.Dataset.from_tensor_slices((dataset.file, dataset.label))
         dataset = dataset.map(self.read_audiofile, num_parallel_calls=self.autotune)
         dataset = dataset.map(self.spectrogram, num_parallel_calls=self.autotune)
+        if self.shuffle:
+            dataset = dataset.shuffle(buffer_size=100)
+        dataset = dataset.batch(self.batch_size)
+        dataset = dataset.cache().prefetch(self.autotune)
         return dataset
+
+    @staticmethod
+    def get_input_shape(dataset):
+        for feature, label in dataset.take(1):
+            input_shape = feature.shape[1:]
+        return input_shape
 
     def decode_audio(self, audio_name: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         """Decode audio from tf
@@ -38,7 +52,7 @@ class SpeechCommandLoader:
 
     def read_audiofile(
         self, audio_name: tf.Tensor, audio_label: tf.Tensor
-    ) -> tuple(tf.Tensor, tf.Tensor):
+    ) -> Tuple[tf.Tensor, tf.Tensor]:
         """Read audio and load the audio file for training
 
         Args:
@@ -55,7 +69,7 @@ class SpeechCommandLoader:
 
     def spectrogram(
         self, audio: tf.Tensor, label: tf.Tensor
-    ) -> tuple(tf.Tensor, tf.Tensor):
+    ) -> Tuple[tf.Tensor, tf.Tensor]:
         """get spectrogram feature
 
         Args:

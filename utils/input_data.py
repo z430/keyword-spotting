@@ -12,13 +12,13 @@ import random
 import re
 import sys
 import tarfile
-from typing import Dict
 import urllib
+from typing import Dict
 
 import librosa
+import numpy as np
 import pandas as pd
 import python_speech_features as psf
-import numpy as np
 import tensorflow as tf
 import tqdm
 
