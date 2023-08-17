@@ -9,7 +9,7 @@
   </p>
 
   <br>
-  ![GitHub](https://img.shields.io/github/license/z430/keyword-spotting)
+  [![license](https://img.shields.io/pypi/l/supervision)](https://github.com/roboflow/supervision/blob/main/LICENSE.md)
 </div>
 
 
