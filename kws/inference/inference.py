@@ -15,7 +15,7 @@ import torchaudio
 # model.summary()
 
 # load test audio
-test_audio = 'data/train/right/0b09edd3_nohash_0.wav'
+test_audio = "data/train/right/0b09edd3_nohash_0.wav"
 # read test audio
 start = time.time()
 y, sr = librosa.load(test_audio, sr=16000)

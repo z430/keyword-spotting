@@ -19,21 +19,29 @@ class SpeechFeatures:
     def mfcc(self, sig):
         # print(self.win_length, self.hop_length)
         mfcc = psf.mfcc(
-            sig, winlen=self.win_length, nfft=self.n_fft,
-            winstep=self.hop_length, numcep=self.numcep, nfilt=self.nfilt
+            sig,
+            winlen=self.win_length,
+            nfft=self.n_fft,
+            winstep=self.hop_length,
+            numcep=self.numcep,
+            nfilt=self.nfilt,
         )
         return mfcc
 
     def get_mfcc(self, waveform, label):
         waveform = tf.cast(waveform, tf.float32)
-        mfcc_features = tf.py_function(
-            self.mfcc, [waveform.numpy(), tf.float32]
-        )
+        mfcc_features = tf.py_function(self.mfcc, [waveform.numpy(), tf.float32])
         mfcc_features = tf.convert_to_tensor(mfcc_features)
         return mfcc_features, label
 
-
     def cgram_(self, sig):
         cg = cgram.human_cochleagram(
-            sig, self.fs, n=20, sample_factor=2, downsample=20, nonlinearity='power', strict=False)
+            sig,
+            self.fs,
+            n=20,
+            sample_factor=2,
+            downsample=20,
+            nonlinearity="power",
+            strict=False,
+        )
         return cg

@@ -25,10 +25,9 @@ import tqdm
 
 class GetData:
     def __init__(self, prepare_data=True, wanted_words="marvin"):
-
         # don't change this parameter
         self.prepare_data = prepare_data
-        self.MAX_NUM_WAVS_PER_CLASS = 2 ** 27 - 1  # ~134MB
+        self.MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134MB
         self.RANDOM_SEED = 59185
         self.SILENCE_INDEX = 0
         self.SILENCE_LABEL = "_silence_"
