@@ -9,7 +9,8 @@
   </p>
 
   <br>
-  [![license](https://img.shields.io/github/license/z430/keyword-spotting)](https://github.com/z430/keyword-spotting/blob/master/LICENSE)
+  [![license](https://img.shields.io/github/license/z430/keyword-spotting
+)](https://github.com/z430/keyword-spotting/LICENSE)
 </div>
 
 ## 👋 hello
