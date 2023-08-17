@@ -9,10 +9,9 @@
   </p>
 
   <br>
-  ![GitHub](https://img.shields.io/github/license/z430/keyword-spotting)
+
+[![license](https://img.shields.io/github/license/z430/keyword-spotting.svg)](https://github.com/z430/keyword-spotting/blob/master/LICENSE)
 </div>
-
-
 ## 👋 hello
 
 **We write keyword spotting or wake up word to call your devices 🤝
