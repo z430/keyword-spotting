@@ -1,8 +1,3 @@
-""" This class is for pick the train, val and test set
-    All the the data augmentation and data setting are defined
-    in here
-"""
-
 import glob
 import hashlib
 import math
@@ -13,39 +8,43 @@ import re
 import sys
 import tarfile
 import urllib
-from typing import Dict
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import librosa
 import numpy as np
-import pandas as pd
 import python_speech_features as psf
-import tensorflow as tf
-import tqdm
+
+DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
+MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134MB
+RANDOM_SEED = 59185
+SILENCE_INDEX = 0
+SILENCE_LABEL = "_silence_"
+UNKNOWN_WORD_INDEX = 1
+UNKNOWN_WORD_LABEL = "_unknown_"
+BACKGROUND_NOISE_DIR_NAME = "_background_noise_"
+DEFAULT_DATASET_PATH = Path.home
 
 
 class GetData:
-    def __init__(self, prepare_data=True, wanted_words="marvin"):
-        # don't change this parameter
-        self.prepare_data = prepare_data
-        self.MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134MB
-        self.RANDOM_SEED = 59185
-        self.SILENCE_INDEX = 0
-        self.SILENCE_LABEL = "_silence_"
-        self.UNKNOWN_WORD_INDEX = 1
-        self.UNKNOWN_WORD_LABEL = "_unknown_"
-        self.BACKGROUND_NOISE_DIR_NAME = "_background_noise_"
+    def __init__(
+        self, wanted_words: str, dataset_path: Optional[Path], training: bool = False
+    ):
+        self.check_dataset(dataset_path)
+        self.set_audio_parameters()
+        self.set_training_parameters()
 
-        self.data_url = (
-            "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
-        )
-        self.data_dir = "../data/train"
-        if os.path.isdir(self.data_dir):
-            self.maybe_download_and_extract_dataset(self.data_url, self.data_dir)
-        else:
-            os.makedirs(self.data_dir)
-            self.maybe_download_and_extract_dataset(self.data_url, self.data_dir)
+        self.create_dataset(wanted_words.split(","))
 
-        # audio augmentation params
+        self.prepare_background_data()
+
+    def check_dataset(self, dataset_path: Optional[Path]) -> None:
+        if not dataset_path:
+            self.maybe_download_and_extract_dataset(DATA_URL, DEFAULT_DATASET_PATH)
+            self.dataset_path = DEFAULT_DATASET_PATH
+        self.dataset_path = dataset_path
+
+    def set_audio_parameters(self) -> None:
         self.background_volume = 0.1
         self.background_frequency = 0.8
         self.time_shift_ms = 50.0
@@ -55,29 +54,21 @@ class GetData:
         self.desired_samples = int(self.sample_rate * (self.clip_duration_ms / 1000))
         self.use_background_noise = True
 
+    def set_training_parameters(self) -> None:
         self.silence_percentage = 10.0
         self.unknown_percentage = 10.0
         self.testing_percentage = 10.0
         self.validation_percentage = 10.0
-        self.wanted_words = wanted_words
 
-        # initialization
-        self.words_list = self.prepare_word_list(self.wanted_words)
+    def create_dataset(self, wanted_words: List[str]):
+        self.words_list = self.prepare_word_list(wanted_words)
         self.prepare_data_index(
             self.silence_percentage,
             self.unknown_percentage,
-            self.wanted_words,
+            wanted_words,
             self.validation_percentage,
             self.testing_percentage,
         )
-        self.prepare_background_data()
-        for k, v in self.data_index.items():
-            setattr(self, k, v)
-
-    def transform_df(self, dataset: Dict) -> pd.DataFrame:
-        dataset = pd.DataFrame(dataset)
-        dataset.label = [self.word_to_index[label] for label in dataset.label]
-        return dataset
 
     @staticmethod
     def prepare_word_list(wanted_words):
@@ -113,15 +104,19 @@ class GetData:
             try:
                 filepath, _ = urllib.request.urlretrieve(data_url, filepath, _progress)
             except:
-                print(f"Failed to download URL: {data_url} to folder: {filepath}")
-                print(
+                tf.logging.error(
+                    "Failed to download URL: %s to folder: %s", data_url, filepath
+                )
+                tf.logging.error(
                     "Please make sure you have enough free space and"
                     " an internet connection"
                 )
                 raise
             print()
             statinfo = os.stat(filepath)
-            print(f"Successfully downloaded {filename} ({statinfo.st_size} bytes)")
+            tf.logging.info(
+                "Successfully downloaded %s (%d bytes)", filename, statinfo.st_size
+            )
             tarfile.open(filepath, "r:gz").extractall(dest_directory)
 
     def which_set(self, filename, validation_percentage, testing_percentage):
@@ -176,59 +171,46 @@ class GetData:
 
     def prepare_data_index(
         self,
-        silence_percentage,
-        unknown_percentage,
-        wanted_words,
-        validation_percentage,
-        testing_percentage,
-    ):
+        silence_percentage: float,
+        unknown_percentage: float,
+        wanted_words: List[str],
+        validation_percentage: float,
+        testing_percentage: float,
+    ) -> None:
         """
         Prepares a list of the samples organized by set and label.
-        The training loop needs a list of all the available data, organized by
-        which partition it should belong to, and with ground truth labels attached.
-        This function analyzes the folders below the `data_dir`, figures out the
-        right
-        labels for each file based on the name of the subdirectory it belongs to,
-        and uses a stable hash to assign it to a data set partition.
+            The training loop needs a list of all the available data, organized by
+            which partition it should belong to, and with ground truth labels attached.
+            This function analyzes the folders below the `data_dir`, figures out the
+            right
+            labels for each file based on the name of the subdirectory it belongs to,
+            and uses a stable hash to assign it to a data set partition.
+
         Args:
-          silence_percentage: How much of the resulting data should be background.
-          unknown_percentage: How much should be audio outside the wanted classes.
-          wanted_words: Labels of the classes we want to be able to recognize.
-          validation_percentage: How much of the data set to use for validation.
-          testing_percentage: How much of the data set to use for testing.
-        Returns:
-          Dictionary containing a list of file information for each set partition,
-          and a lookup map for each class to determine its numeric index.
+            silence_percentage (float): How much of the resulting data should be background.
+            unknown_percentage (float): How much should be audio outside the wanted classes.
+            wanted_words (List[str]): Labels of the classes we want to be able to recognize.
+            validation_percentage (float): How much of the data set to use for validation.
+            testing_percentage (float): How much of the data set to use for testing.
+
         Raises:
-          Exception: If expected files are not found.
+            Exception: If expected files are not found.
         """
         # Make sure the shuffling and picking of unknowns is deterministic.
-        random.seed(self.RANDOM_SEED)
+        random.seed(RANDOM_SEED)
+
         wanted_words_index = {}
         for index, wanted_word in enumerate(wanted_words):
             wanted_words_index[wanted_word] = index + 2
+
         self.data_index = {"validation": [], "testing": [], "training": []}
         unknown_index = {"validation": [], "testing": [], "training": []}
+
         all_words = {}
+
         # Look through all the subfolders to find audio samples
-        search_path = os.path.join(self.data_dir, "*", "*.wav")
-        for wav_path in glob.glob(search_path):
-            _, word = os.path.split(os.path.dirname(wav_path))
-            word = word.lower()
-            # Treat the '_background_noise_' folder as a special case, since we expect
-            # it to contain long audio samples we mix in to improve training.
-            if word == self.BACKGROUND_NOISE_DIR_NAME:
-                continue
-            all_words[word] = True
-            set_index = self.which_set(
-                wav_path, validation_percentage, testing_percentage
-            )
-            # If it's a known class, store its detail, otherwise add it to the list
-            # we'll use to train the unknown label.
-            if word in wanted_words_index:
-                self.data_index[set_index].append({"label": word, "file": wav_path})
-            else:
-                unknown_index[set_index].append({"label": word, "file": wav_path})
+        search_path = os.path.join(str(self.dataset_path), "*", "*.wav")
+        self.get_audio_path(search_path, all_words, wanted_words_index, unknown_index)
         if not all_words:
             raise Exception("No .wavs found at " + search_path)
         for index, wanted_word in enumerate(wanted_words):
@@ -247,7 +229,7 @@ class GetData:
             silence_size = int(math.ceil(set_size * silence_percentage / 100))
             for _ in range(silence_size):
                 self.data_index[set_index].append(
-                    {"label": self.SILENCE_LABEL, "file": silence_wav_path}
+                    {"label": SILENCE_LABEL, "file": silence_wav_path}
                 )
             # Pick some unknowns to add to each partition of the data set.
             random.shuffle(unknown_index[set_index])
@@ -263,8 +245,29 @@ class GetData:
             if word in wanted_words_index:
                 self.word_to_index[word] = wanted_words_index[word]
             else:
-                self.word_to_index[word] = self.UNKNOWN_WORD_INDEX
-        self.word_to_index[self.SILENCE_LABEL] = self.SILENCE_INDEX
+                self.word_to_index[word] = UNKNOWN_WORD_INDEX
+        self.word_to_index[SILENCE_LABEL] = SILENCE_INDEX
+
+    def get_audio_path(
+        self, path: str, all_words: Dict, wanted_words_index: Dict, unknown_index: Dict
+    ) -> None:
+        for wav_path in glob.glob(path):
+            _, word = os.path.split(os.path.dirname(wav_path))
+            word = word.lower()
+            # Treat the '_background_noise_' folder as a special case, since we expect
+            # it to contain long audio samples we mix in to improve training.
+            if word == BACKGROUND_NOISE_DIR_NAME:
+                continue
+            all_words[word] = True
+            set_index = self.which_set(
+                wav_path, self.validation_percentage, self.testing_percentage
+            )
+            # If it's a known class, store its detail, otherwise add it to the list
+            # we'll use to train the unknown label.
+            if word in wanted_words_index:
+                self.data_index[set_index].append({"label": word, "file": wav_path})
+            else:
+                unknown_index[set_index].append({"label": word, "file": wav_path})
 
     def set_size(self, mode):
         """
@@ -304,16 +307,16 @@ class GetData:
         if not self.background_data:
             raise Exception("No background wav files were found in " + search_path)
 
-    def audio_transform(self, filename: tf.string, label: tf.string) -> tf.float32:
-        """Read audio and load audio
+    def get_datafiles(self, mode):
+        return self.data_index[mode]
 
-        Args:
-            filename (tf.string): path of audio
-            label (tf.string): the label name of the audio
+    def audio_transform(self, filename, label):
+        """audio_transform.
 
-        Returns:
-            tf.float32: transformed audio
+        :param filename: tf string audio path
+        :param label: the label of audio
         """
+        # print(filename, label)
         # read audio with librosa
         audio, sample_rate = librosa.load(
             filename.numpy().decode("UTF-8"), sr=self.sample_rate

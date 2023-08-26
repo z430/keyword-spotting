@@ -1,6 +1,7 @@
 from typing import Tuple
-import tensorflow as tf
+
 import pandas as pd
+import tensorflow as tf
 
 
 class SpeechCommandLoader:

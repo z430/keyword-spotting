@@ -1,8 +1,8 @@
-import tensorflow as tf
-import python_speech_features as psf
-import numpy as np
-from pycochleagram import cochleagram as cgram
 import librosa
+import numpy as np
+import python_speech_features as psf
+import tensorflow as tf
+from pycochleagram import cochleagram as cgram
 
 
 class SpeechFeatures:

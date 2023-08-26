@@ -1,11 +1,9 @@
 """ Training """
 import tensorflow as tf
-from tensorflow.keras import layers
-from tensorflow.keras import models
-
+from tensorflow.keras import layers, models
 from utils.config import ConfigParser
-from utils.input_data import GetData
 from utils.dataloaders import SpeechCommandLoader
+from utils.input_data import GetData
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 

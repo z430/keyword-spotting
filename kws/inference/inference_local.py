@@ -3,18 +3,17 @@ import signal
 import sys
 import time
 import wave
-import keras
-import audio_utility as au
 from array import array
 from struct import pack
 
-import pyaudio
-from pydub import AudioSegment
-from pydub.playback import play
-import webrtcvad
-
+import audio_utility as au
+import keras
 import librosa
 import numpy as np
+import pyaudio
+import webrtcvad
+from pydub import AudioSegment
+from pydub.playback import play
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1

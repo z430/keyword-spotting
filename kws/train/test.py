@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 from scipy import interp
-from sklearn.metrics import accuracy_score, auc, classification_report, roc_curve
+from sklearn.metrics import (accuracy_score, auc, classification_report,
+                             roc_curve)
 
 
 def generate_results():

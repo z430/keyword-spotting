@@ -1,9 +1,8 @@
 import datetime
 import random  # feature versioning
 
-import numpy as np
-
 import input_data
+import numpy as np
 
 t = datetime.datetime.now()
 newdate = datetime.datetime.strftime(t, "%H_%M_%m_%d")
@@ -25,7 +24,9 @@ def save_experiment_data():
 
     input_size = np.ones(features.sample_rate)
     input_size = features.speech_features.cgram_(input_size, 16000)
-    model_name = f"{speech_feature}_{input_size.shape[0]}x{input_size.shape[1]}_{wanted_words.replace(',', '_')}"
+    model_name = (
+        f"{speech_feature}_{input_size.shape[0]}x{input_size.shape[1]}_{wanted_words.replace(',', '_')}"
+    )
     print("generating training, validation, testing data.")
     print("input size: ", input_size.shape, model_name)
     x_train, y_train = features.get_data(-1, 0, "training")
