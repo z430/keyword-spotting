@@ -39,10 +39,8 @@ class GetData:
         self.prepare_background_data()
 
     def check_dataset(self, dataset_path: Optional[Path]) -> None:
-        if not dataset_path:
-            self.maybe_download_and_extract_dataset(DATA_URL, DEFAULT_DATASET_PATH)
-            self.dataset_path = DEFAULT_DATASET_PATH
-        self.dataset_path = dataset_path
+        self.dataset_path = DEFAULT_DATASET_PATH if not dataset_path else dataset_path
+        self.maybe_download_and_extract_dataset(DATA_URL, DEFAULT_DATASET_PATH)
 
     def set_audio_parameters(self) -> None:
         self.background_volume = 0.1
@@ -62,13 +60,7 @@ class GetData:
 
     def create_dataset(self, wanted_words: List[str]):
         self.words_list = self.prepare_word_list(wanted_words)
-        self.prepare_data_index(
-            self.silence_percentage,
-            self.unknown_percentage,
-            wanted_words,
-            self.validation_percentage,
-            self.testing_percentage,
-        )
+        self.prepare_data_index(wanted_words)
 
     @staticmethod
     def prepare_word_list(wanted_words):
@@ -171,11 +163,7 @@ class GetData:
 
     def prepare_data_index(
         self,
-        silence_percentage: float,
-        unknown_percentage: float,
         wanted_words: List[str],
-        validation_percentage: float,
-        testing_percentage: float,
     ) -> None:
         """
         Prepares a list of the samples organized by set and label.
@@ -208,33 +196,15 @@ class GetData:
 
         all_words = {}
 
-        # Look through all the subfolders to find audio samples
         search_path = os.path.join(str(self.dataset_path), "*", "*.wav")
         self.get_audio_path(search_path, all_words, wanted_words_index, unknown_index)
-        if not all_words:
-            raise Exception("No .wavs found at " + search_path)
-        for index, wanted_word in enumerate(wanted_words):
-            if wanted_word not in all_words:
-                raise Exception(
-                    "Expected to find "
-                    + wanted_word
-                    + " in labels but only found "
-                    + ", ".join(all_words.keys())
-                )
-        # We need an arbitrary file to load as the input for the silence samples.
-        # It's multiplied by zero later, so the content doesn't matter.
-        silence_wav_path = self.data_index["training"][0]["file"]
-        for set_index in ["validation", "testing", "training"]:
-            set_size = len(self.data_index[set_index])
-            silence_size = int(math.ceil(set_size * silence_percentage / 100))
-            for _ in range(silence_size):
-                self.data_index[set_index].append(
-                    {"label": SILENCE_LABEL, "file": silence_wav_path}
-                )
-            # Pick some unknowns to add to each partition of the data set.
-            random.shuffle(unknown_index[set_index])
-            unknown_size = int(math.ceil(set_size * unknown_percentage / 100))
-            self.data_index[set_index].extend(unknown_index[set_index][:unknown_size])
+        self.check_audio_path(all_words, wanted_words, search_path)
+        self.set_silence_data(unknown_index)
+        self.set_data_index(wanted_words, all_words, wanted_words_index)
+
+    def set_data_index(
+        self, wanted_words: List[str], all_words: Dict, wanted_words_index: Dict
+    ) -> None:
         # Make sure the ordering is random.
         for set_index in ["validation", "testing", "training"]:
             random.shuffle(self.data_index[set_index])
@@ -247,6 +217,36 @@ class GetData:
             else:
                 self.word_to_index[word] = UNKNOWN_WORD_INDEX
         self.word_to_index[SILENCE_LABEL] = SILENCE_INDEX
+
+    def set_silence_data(self, unknown_index: Dict) -> None:
+        # We need an arbitrary file to load as the input for the silence samples.
+        # It's multiplied by zero later, so the content doesn't matter.
+        silence_wav_path = self.data_index["training"][0]["file"]
+        for set_index in ["validation", "testing", "training"]:
+            set_size = len(self.data_index[set_index])
+            silence_size = int(math.ceil(set_size * self.silence_percentage / 100))
+            for _ in range(silence_size):
+                self.data_index[set_index].append(
+                    {"label": SILENCE_LABEL, "file": silence_wav_path}
+                )
+            # Pick some unknowns to add to each partition of the data set.
+            random.shuffle(unknown_index[set_index])
+            unknown_size = int(math.ceil(set_size * self.unknown_percentage / 100))
+            self.data_index[set_index].extend(unknown_index[set_index][:unknown_size])
+
+    def check_audio_path(
+        self, all_words: Dict, wanted_words: List[str], search_path: str
+    ) -> None:
+        if not all_words:
+            raise Exception("No .wavs found at " + search_path)
+        for _, wanted_word in enumerate(wanted_words):
+            if wanted_word not in all_words:
+                raise Exception(
+                    "Expected to find "
+                    + wanted_word
+                    + " in labels but only found "
+                    + ", ".join(all_words.keys())
+                )
 
     def get_audio_path(
         self, path: str, all_words: Dict, wanted_words_index: Dict, unknown_index: Dict
@@ -294,16 +294,20 @@ class GetData:
           Exception: If files aren't found in the folder.
         """
         self.background_data = []
-        background_dir = os.path.join(self.data_dir, self.BACKGROUND_NOISE_DIR_NAME)
-        if not os.path.exists(background_dir):
+
+        self.dataset_path: Path
+        background_dir = self.dataset_path / BACKGROUND_NOISE_DIR_NAME
+
+        if not background_dir.exists():
             return self.background_data
 
         search_path = os.path.join(
-            self.data_dir, self.BACKGROUND_NOISE_DIR_NAME, "*.wav"
+            str(self.dataset_path), BACKGROUND_NOISE_DIR_NAME, "*.wav"
         )
         for wav_path in glob.glob(search_path):
             wav_data, _ = librosa.load(wav_path, sr=self.sample_rate)
             self.background_data.append(wav_data)
+
         if not self.background_data:
             raise Exception("No background wav files were found in " + search_path)
 
@@ -322,12 +326,12 @@ class GetData:
             filename.numpy().decode("UTF-8"), sr=self.sample_rate
         )
         # fix the audio length
-        audio = librosa.util.fix_length(audio, self.desired_samples)
+        # audio = librosa.util.fix_length(audio, self.desired_samples)
         # preemphasis -> make the audio gain higher
-        audio = psf.sigproc.preemphasis(audio)
+        # audio = psf.sigproc.preemphasis(audio)
 
         # if the label is silence make the audio volume to 0
-        if label.numpy() == self.SILENCE_INDEX:
+        if label.numpy() == SILENCE_INDEX:
             audio = audio * 0
 
         # audio augmentation
@@ -341,12 +345,13 @@ class GetData:
             time_shift_offset = -time_shift_amount
 
         padded_foreground = np.pad(audio, time_shift_padding, "constant")
-        sliced_foreground = librosa.util.fix_length(
-            padded_foreground[time_shift_offset:], self.desired_samples
-        )
+
+        # sliced_foreground = librosa.util.fix_length(
+        #     padded_foreground[time_shift_offset:], self.desired_samples
+        # )
 
         # 2. select noise type and randomly select how big the volume is
-        if self.use_background_noise or label.numpy() == self.SILENCE_INDEX:
+        if self.use_background_noise or label.numpy() == SILENCE_INDEX:
             background_index = np.random.randint(len(self.background_data))
             background_samples = self.background_data[background_index]
             background_offset = np.random.randint(
@@ -356,7 +361,7 @@ class GetData:
                 background_offset : (background_offset + self.desired_samples)
             ]
             background_reshaped = background_clipped.reshape(self.desired_samples)
-            if label.numpy() == self.SILENCE_INDEX:
+            if label.numpy() == SILENCE_INDEX:
                 background_volume = np.random.uniform(0, 1)
             elif np.random.uniform(0, 1) < self.background_frequency:
                 background_volume = np.random.uniform(0, self.background_volume)
