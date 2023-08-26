@@ -11,6 +11,7 @@ import urllib
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from loguru import logger
 import librosa
 import numpy as np
 import python_speech_features as psf
@@ -23,7 +24,7 @@ SILENCE_LABEL = "_silence_"
 UNKNOWN_WORD_INDEX = 1
 UNKNOWN_WORD_LABEL = "_unknown_"
 BACKGROUND_NOISE_DIR_NAME = "_background_noise_"
-DEFAULT_DATASET_PATH = Path.home
+DEFAULT_DATASET_PATH = Path.home()
 
 
 class GetData:
@@ -33,9 +34,7 @@ class GetData:
         self.check_dataset(dataset_path)
         self.set_audio_parameters()
         self.set_training_parameters()
-
         self.create_dataset(wanted_words.split(","))
-
         self.prepare_background_data()
 
     def check_dataset(self, dataset_path: Optional[Path]) -> None:
@@ -96,17 +95,17 @@ class GetData:
             try:
                 filepath, _ = urllib.request.urlretrieve(data_url, filepath, _progress)
             except:
-                tf.logging.error(
+                logger.error(
                     "Failed to download URL: %s to folder: %s", data_url, filepath
                 )
-                tf.logging.error(
+                logger.error(
                     "Please make sure you have enough free space and"
                     " an internet connection"
                 )
                 raise
-            print()
+
             statinfo = os.stat(filepath)
-            tf.logging.info(
+            logger.info(
                 "Successfully downloaded %s (%d bytes)", filename, statinfo.st_size
             )
             tarfile.open(filepath, "r:gz").extractall(dest_directory)
@@ -326,9 +325,9 @@ class GetData:
             filename.numpy().decode("UTF-8"), sr=self.sample_rate
         )
         # fix the audio length
-        # audio = librosa.util.fix_length(audio, self.desired_samples)
+        audio = librosa.util.fix_length(audio, self.desired_samples)
         # preemphasis -> make the audio gain higher
-        # audio = psf.sigproc.preemphasis(audio)
+        audio = psf.sigproc.preemphasis(audio)
 
         # if the label is silence make the audio volume to 0
         if label.numpy() == SILENCE_INDEX:
@@ -346,9 +345,9 @@ class GetData:
 
         padded_foreground = np.pad(audio, time_shift_padding, "constant")
 
-        # sliced_foreground = librosa.util.fix_length(
-        #     padded_foreground[time_shift_offset:], self.desired_samples
-        # )
+        sliced_foreground = librosa.util.fix_length(
+            padded_foreground[time_shift_offset:], self.desired_samples
+        )
 
         # 2. select noise type and randomly select how big the volume is
         if self.use_background_noise or label.numpy() == SILENCE_INDEX:
