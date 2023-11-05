@@ -1,12 +1,12 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="keyword-spotting",
-    packages=find_packages(exclude=["examples"]),
+    name="keyword_spotting",
+    packages=find_packages(exclude=["examples", "assets"]),
     version="0.0.1",
     license="MIT",
-    description="Keyword Spotting Implementation",
-    author="Phil Wang",
+    description="Keyword Spotting - Pytorch",
+    author="Maystya",
     author_email="maystya@gmail.com",
     url="https://github.com/z430/keyword-spotting",
     long_description_content_type="text/markdown",
