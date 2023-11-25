@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from keyword_spotting.data.dataloaders import SpeechCommandsDataset
+from kws.data.dataloaders import SpeechCommandsDataset
 
 ROOT_DIR = Path(__file__).parent
 
