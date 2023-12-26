@@ -11,10 +11,11 @@ import urllib
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from loguru import logger
 import librosa
 import numpy as np
 import python_speech_features as psf
+from loguru import logger
+from pydantic import BaseModel
 
 DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
 MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134MB
@@ -27,10 +28,32 @@ BACKGROUND_NOISE_DIR_NAME = "_background_noise_"
 DEFAULT_DATASET_PATH = Path.home()
 
 
+class Parameters(BaseModel):
+    background_volume: float
+    background_frequency: float
+    time_shift_ms: float
+    sample_ratio: int
+    clip_duration_ms: int
+    use_background_noise: bool
+
+    silence_percentage: float
+    unknown_percentage: float
+
+    testing_percentage: float
+    validation_percentage: float
+
+    wanted_words: List[str]
+
+
 class GetData:
     def __init__(
-        self, wanted_words: str, dataset_path: Optional[Path], training: bool = False
+        self,
+        wanted_words: str,
+        dataset_path: Optional[Path],
+        parameters_path: Path,
+        training: bool = False,
     ):
+        # self.parameters = Parameters(**)
         self.check_dataset(dataset_path)
         self.set_audio_parameters()
         self.set_training_parameters()

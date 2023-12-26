@@ -3,7 +3,7 @@ background_volume: 0.1
 background_frequency: 0.8
 time_shift_ms: 50.0
 sample_rate: 16000
-clip_duration: 1000
+clip_duration_ms: 1000
 use_background_noise: True
 
 silence_percentage: 10.0
