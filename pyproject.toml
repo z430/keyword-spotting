@@ -16,3 +16,19 @@ preview = true
 
 # Build system information and other project-specific configuration below.
 # NOTE: You don't need this in your own Black configuration.
+
+[tool.poetry]
+name = "keyword-spotting"
+version = "0.1.0"
+description = "as your call"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.8"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
