@@ -2,5 +2,5 @@
 *.hdf5
 .vscode/
 __pycache__/
-data/train/
+data/
 wandb/*

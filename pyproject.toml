@@ -1,34 +1,78 @@
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38']
+target-version = ['py38']
 include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # The following are specific to Black, you probably don't want those.
-  tests/data
-  | profiling
-)/
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+)
 '''
-# We use preview style for formatting Black itself. If you
-# want stable formatting across releases, you should keep
-# this off.
-preview = true
 
-# Build system information and other project-specific configuration below.
-# NOTE: You don't need this in your own Black configuration.
+[tool.coverage.run]
+omit = ["tests/*"]
 
-[tool.poetry]
-name = "keyword-spotting"
-version = "0.1.0"
-description = "as your call"
-authors = ["Your Name <you@example.com>"]
-license = "MIT"
-readme = "README.md"
+[tool.pytest.ini_options]
+log_cli = 1
 
-[tool.poetry.dependencies]
-python = "3.8"
+[tool.ruff]
+select = [
+  "B",  # flake8-bugbear
+  "C4", # flake8-comprehensions
+  "E",  # error
+  "F",  # pyflakes
+  "I",  # isort
+]
+ignore = [
+  "E501", # line too long
+  "E741", # ambiguous variable name
+]
 
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+# Exclude a variety of commonly ignored directories.
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+]
+
+# Same as Black.
+line-length = 88
+
+# Assume Python 3.8
+target-version = "py38"
+
+[tool.ruff.extend-per-file-ignores]
+"__init__.py" = [
+  "F401", # imported but unused
+]
