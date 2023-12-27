@@ -17,6 +17,8 @@ import python_speech_features as psf
 from loguru import logger
 from pydantic import BaseModel
 
+from kws.utils.loader import load_yaml
+
 DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
 MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134MB
 RANDOM_SEED = 59185
@@ -32,7 +34,7 @@ class Parameters(BaseModel):
     background_volume: float
     background_frequency: float
     time_shift_ms: float
-    sample_ratio: int
+    sample_rate: int
     clip_duration_ms: int
     use_background_noise: bool
 
@@ -45,20 +47,17 @@ class Parameters(BaseModel):
     wanted_words: List[str]
 
 
-class GetData:
+class SpeechCommandsDataset:
     def __init__(
         self,
-        wanted_words: str,
-        dataset_path: Optional[Path],
         parameters_path: Path,
-        training: bool = False,
     ):
-        # self.parameters = Parameters(**)
-        self.check_dataset(dataset_path)
-        self.set_audio_parameters()
-        self.set_training_parameters()
-        self.create_dataset(wanted_words.split(","))
-        self.prepare_background_data()
+        self.parameters = Parameters(**load_yaml(parameters_path))
+        # self.check_dataset(dataset_path)
+        # self.set_audio_parameters()
+        # self.set_training_parameters()
+        # self.create_dataset(wanted_words.split(","))
+        # self.prepare_background_data()
 
     def check_dataset(self, dataset_path: Optional[Path]) -> None:
         self.dataset_path = DEFAULT_DATASET_PATH if not dataset_path else dataset_path

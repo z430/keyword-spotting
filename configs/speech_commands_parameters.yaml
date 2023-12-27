@@ -12,13 +12,13 @@ testing_percentage: 10.0
 validation_percentage: 10.0
 
 wanted_words:
-  - yes
-  - no
-  - up
-  - down
-  - left
-  - right
-  - on
-  - off
-  - stop
-  - go
+  - "yes"
+  - "no"
+  - "up"
+  - "down"
+  - "left"
+  - "right"
+  - "on"
+  - "off"
+  - "stop"
+  - "go"

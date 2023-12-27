@@ -5,4 +5,6 @@ import yaml
 
 
 def load_yaml(yaml_path: Path) -> Dict:
-    return yaml.load(open(yaml_path), Loader=yaml.BaseLoader)
+    with open(yaml_path, "r") as f:
+        config = yaml.safe_load(f)
+    return config

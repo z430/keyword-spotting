@@ -1,15 +1,17 @@
 from pathlib import Path
 
-from kws.data.dataloaders import SpeechCommandsDataset
+from loguru import logger
+
+from kws.datasets.speech_commands import SpeechCommandsDataset
 
 ROOT_DIR = Path(__file__).parent
 
 
 def main():
     dataset = SpeechCommandsDataset(
-        dataset_path=(ROOT_DIR / "data" / "dataset"),
-        config_path=(ROOT_DIR / "configs" / "parameters.yaml"),
+        ROOT_DIR / "configs" / "speech_commands_parameters.yaml"
     )
+    logger.info(dataset.parameters)
 
 
 if __name__ == "__main__":
