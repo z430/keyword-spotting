@@ -7,7 +7,7 @@ import random
 import re
 import sys
 import tarfile
-import urllib
+import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -40,44 +40,27 @@ class Parameters(BaseModel):
 
     silence_percentage: float
     unknown_percentage: float
-
     testing_percentage: float
     validation_percentage: float
 
     wanted_words: List[str]
 
+    @property
+    def time_shift(self) -> int:
+        return int((self.time_shift_ms * self.sample_rate) / 1000)
+
+    @property
+    def desired_samples(self) -> int:
+        return int(self.sample_rate * (self.clip_duration_ms) / 1000)
+
 
 class SpeechCommandsDataset:
-    def __init__(
-        self,
-        parameters_path: Path,
-    ):
+    def __init__(self, parameters_path: Path, dataset_path: Path):
         self.parameters = Parameters(**load_yaml(parameters_path))
-        # self.check_dataset(dataset_path)
-        # self.set_audio_parameters()
-        # self.set_training_parameters()
-        # self.create_dataset(wanted_words.split(","))
-        # self.prepare_background_data()
+        self.dataset_path = dataset_path
 
-    def check_dataset(self, dataset_path: Optional[Path]) -> None:
-        self.dataset_path = DEFAULT_DATASET_PATH if not dataset_path else dataset_path
-        self.maybe_download_and_extract_dataset(DATA_URL, DEFAULT_DATASET_PATH)
-
-    def set_audio_parameters(self) -> None:
-        self.background_volume = 0.1
-        self.background_frequency = 0.8
-        self.time_shift_ms = 50.0
-        self.sample_rate = 16000
-        self.clip_duration_ms = 1000
-        self.time_shift = int((self.time_shift_ms * self.sample_rate) / 1000)
-        self.desired_samples = int(self.sample_rate * (self.clip_duration_ms / 1000))
-        self.use_background_noise = True
-
-    def set_training_parameters(self) -> None:
-        self.silence_percentage = 10.0
-        self.unknown_percentage = 10.0
-        self.testing_percentage = 10.0
-        self.validation_percentage = 10.0
+        # download dataset if not exists in the desired path
+        self.maybe_download_and_extract_dataset()
 
     def create_dataset(self, wanted_words: List[str]):
         self.words_list = self.prepare_word_list(wanted_words)
@@ -87,7 +70,7 @@ class SpeechCommandsDataset:
     def prepare_word_list(wanted_words):
         return ["_silence_", "_unknown_"] + wanted_words
 
-    def maybe_download_and_extract_dataset(self, data_url, dest_directory):
+    def maybe_download_and_extract_dataset(self):
         """
         Download and extract data set tar file.
         If the data set we're using doesn't already exist, this function
@@ -99,13 +82,11 @@ class SpeechCommandsDataset:
         data_url: Web location of the tar file containing the data set.
         dest_directory: File path to extract data to.
         """
-        if not data_url:
-            return
-        if not os.path.exists(dest_directory):
-            os.makedirs(dest_directory)
-        filename = data_url.split("/")[-1]
-        filepath = os.path.join(dest_directory, filename)
-        if not os.path.exists(filepath):
+        filename = DATA_URL.split("/")[-1]
+        filepath = self.dataset_path / filename
+
+        self.dataset_path.mkdir(parents=True, exist_ok=True)
+        if not filepath.exists():
 
             def _progress(count, block_size, total_size):
                 sys.stdout.write(
@@ -115,10 +96,10 @@ class SpeechCommandsDataset:
                 sys.stdout.flush()
 
             try:
-                filepath, _ = urllib.request.urlretrieve(data_url, filepath, _progress)
+                filepath, _ = urllib.request.urlretrieve(DATA_URL, filepath, _progress)
             except:
                 logger.error(
-                    "Failed to download URL: %s to folder: %s", data_url, filepath
+                    "Failed to download URL: %s to folder: %s", DATA_URL, filepath
                 )
                 logger.error(
                     "Please make sure you have enough free space and"
@@ -130,7 +111,7 @@ class SpeechCommandsDataset:
             logger.info(
                 "Successfully downloaded %s (%d bytes)", filename, statinfo.st_size
             )
-            tarfile.open(filepath, "r:gz").extractall(dest_directory)
+            tarfile.open(filepath, "r:gz").extractall(self.dataset_path)
 
     def which_set(self, filename, validation_percentage, testing_percentage):
         """
@@ -398,3 +379,4 @@ class SpeechCommandsDataset:
         audio = np.add(background_mul, sliced_foreground)
         # print(audio.shape)
         return audio
+
