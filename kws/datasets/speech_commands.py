@@ -62,6 +62,7 @@ class SpeechCommandsDataset:
         self.maybe_download_and_extract_dataset()
         self.words_list = ["_silence_", "_unknown_"] + self.parameters.wanted_words
         self.prepare_data_index()
+        self.prepare_background_data()
 
     def maybe_download_and_extract_dataset(self):
         filename = DATA_URL.split("/")[-1]
@@ -210,7 +211,7 @@ class SpeechCommandsDataset:
             else:
                 unknown_index[set_index].append({"label": word, "file": wav_path})
 
-    def set_size(self, mode):
+    def set_size(self, mode) -> int:
         return len(self.data_index[mode])
 
     def prepare_background_data(self):
@@ -243,16 +244,14 @@ class SpeechCommandsDataset:
         """
         # print(filename, label)
         # read audio with librosa
-        audio, sample_rate = librosa.load(
-            filename.numpy().decode("UTF-8"), sr=self.parameters.sample_rate
-        )
+        audio, sample_rate = librosa.load(filename, sr=self.parameters.sample_rate)
         # fix the audio length
         audio = librosa.util.fix_length(audio, size=self.parameters.desired_samples)
         # preemphasis -> make the audio gain higher
         audio = preempashis(audio)
 
         # if the label is silence make the audio volume to 0
-        if label.numpy() == SILENCE_INDEX:
+        if label == SILENCE_INDEX:
             audio = audio * 0
 
         # audio augmentation
@@ -274,7 +273,7 @@ class SpeechCommandsDataset:
         )
 
         # 2. select noise type and randomly select how big the volume is
-        if self.parameters.use_background_noise or label.numpy() == SILENCE_INDEX:
+        if self.parameters.use_background_noise or label == SILENCE_INDEX:
             background_index = np.random.randint(len(self.background_data))
             background_samples = self.background_data[background_index]
             background_offset = np.random.randint(
@@ -288,7 +287,7 @@ class SpeechCommandsDataset:
             background_reshaped = background_clipped.reshape(
                 self.parameters.desired_samples
             )
-            if label.numpy() == SILENCE_INDEX:
+            if label == SILENCE_INDEX:
                 background_volume = np.random.uniform(0, 1)
             elif np.random.uniform(0, 1) < self.parameters.background_frequency:
                 background_volume = np.random.uniform(
