@@ -9,14 +9,14 @@ import sys
 import tarfile
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import librosa
 import numpy as np
-import python_speech_features as psf
 from loguru import logger
 from pydantic import BaseModel
 
+from kws.libs.signal_processings import preempashis
 from kws.utils.loader import load_yaml
 
 DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
@@ -59,29 +59,11 @@ class SpeechCommandsDataset:
         self.parameters = Parameters(**load_yaml(parameters_path))
         self.dataset_path = dataset_path
 
-        # download dataset if not exists in the desired path
         self.maybe_download_and_extract_dataset()
-
-    def create_dataset(self, wanted_words: List[str]):
-        self.words_list = self.prepare_word_list(wanted_words)
-        self.prepare_data_index(wanted_words)
-
-    @staticmethod
-    def prepare_word_list(wanted_words):
-        return ["_silence_", "_unknown_"] + wanted_words
+        self.words_list = ["_silence_", "_unknown_"] + self.parameters.wanted_words
+        self.prepare_data_index()
 
     def maybe_download_and_extract_dataset(self):
-        """
-        Download and extract data set tar file.
-        If the data set we're using doesn't already exist, this function
-        downloads it from the TensorFlow.org website and unpacks it into a
-        directory.
-        If the data_url is none, don't download anything and expect the data
-        directory to contain the correct files already.
-        Args:
-        data_url: Web location of the tar file containing the data set.
-        dest_directory: File path to extract data to.
-        """
         filename = DATA_URL.split("/")[-1]
         filepath = self.dataset_path / filename
 
@@ -114,29 +96,6 @@ class SpeechCommandsDataset:
             tarfile.open(filepath, "r:gz").extractall(self.dataset_path)
 
     def which_set(self, filename, validation_percentage, testing_percentage):
-        """
-        Determines which data partition the file should belong to.
-
-        We want to keep files in the same training, validation, or testing sets even
-        if new ones are added over time. This makes it less likely that testing
-        samples will accidentally be reused in training when long runs are restarted
-        for example. To keep this stability, a hash of the filename is taken and used
-        to determine which set it should belong to. This determination only depends on
-        the name and the set proportions, so it won't change as other files are added.
-
-        It's also useful to associate particular files as related (for example words
-        spoken by the same person), so anything after '_nohash_' in a filename is
-        ignored for set determination. This ensures that 'bobby_nohash_0.wav' and
-        'bobby_nohash_1.wav' are always in the same set, for example.
-
-        Args:
-         filename: File path of the data sample.
-         validation_percentage: How much of the data set to use for validation.
-         testing_percentage: How much of the data set to use for testing.
-
-        Returns:
-         String, one of 'training', 'validation', or 'testing'.
-        """
         base_name = os.path.basename(filename)
         # We want to ignore anything after '_nohash_' in the file name when
         # deciding which set to put a wav in, so the data set creator has a way of
@@ -152,9 +111,9 @@ class SpeechCommandsDataset:
         # probability value that we use to assign it.
         # hash_name_hashed = hashlib.sha1(compat.as_bytes(hash_name)).hexdigest()
         hash_name_hashed = hashlib.sha1(hash_name.encode()).hexdigest()
-        percentage_hash = (
-            int(hash_name_hashed, 16) % (self.MAX_NUM_WAVS_PER_CLASS + 1)
-        ) * (100.0 / self.MAX_NUM_WAVS_PER_CLASS)
+        percentage_hash = (int(hash_name_hashed, 16) % (MAX_NUM_WAVS_PER_CLASS + 1)) * (
+            100.0 / MAX_NUM_WAVS_PER_CLASS
+        )
         if percentage_hash < validation_percentage:
             result = "validation"
         elif percentage_hash < (testing_percentage + validation_percentage):
@@ -163,34 +122,11 @@ class SpeechCommandsDataset:
             result = "training"
         return result
 
-    def prepare_data_index(
-        self,
-        wanted_words: List[str],
-    ) -> None:
-        """
-        Prepares a list of the samples organized by set and label.
-            The training loop needs a list of all the available data, organized by
-            which partition it should belong to, and with ground truth labels attached.
-            This function analyzes the folders below the `data_dir`, figures out the
-            right
-            labels for each file based on the name of the subdirectory it belongs to,
-            and uses a stable hash to assign it to a data set partition.
-
-        Args:
-            silence_percentage (float): How much of the resulting data should be background.
-            unknown_percentage (float): How much should be audio outside the wanted classes.
-            wanted_words (List[str]): Labels of the classes we want to be able to recognize.
-            validation_percentage (float): How much of the data set to use for validation.
-            testing_percentage (float): How much of the data set to use for testing.
-
-        Raises:
-            Exception: If expected files are not found.
-        """
-        # Make sure the shuffling and picking of unknowns is deterministic.
+    def prepare_data_index(self) -> None:
         random.seed(RANDOM_SEED)
 
         wanted_words_index = {}
-        for index, wanted_word in enumerate(wanted_words):
+        for index, wanted_word in enumerate(self.parameters.wanted_words):
             wanted_words_index[wanted_word] = index + 2
 
         self.data_index = {"validation": [], "testing": [], "training": []}
@@ -200,18 +136,15 @@ class SpeechCommandsDataset:
 
         search_path = os.path.join(str(self.dataset_path), "*", "*.wav")
         self.get_audio_path(search_path, all_words, wanted_words_index, unknown_index)
-        self.check_audio_path(all_words, wanted_words, search_path)
+        self.check_audio_path(all_words, self.parameters.wanted_words, search_path)
         self.set_silence_data(unknown_index)
-        self.set_data_index(wanted_words, all_words, wanted_words_index)
+        self.set_data_index(all_words, wanted_words_index)
 
-    def set_data_index(
-        self, wanted_words: List[str], all_words: Dict, wanted_words_index: Dict
-    ) -> None:
+    def set_data_index(self, all_words: Dict, wanted_words_index: Dict) -> None:
         # Make sure the ordering is random.
         for set_index in ["validation", "testing", "training"]:
             random.shuffle(self.data_index[set_index])
         # Prepare the rest of the result data structure.
-        self.words_list = self.prepare_word_list(wanted_words)
         self.word_to_index = {}
         for word in all_words:
             if word in wanted_words_index:
@@ -226,14 +159,18 @@ class SpeechCommandsDataset:
         silence_wav_path = self.data_index["training"][0]["file"]
         for set_index in ["validation", "testing", "training"]:
             set_size = len(self.data_index[set_index])
-            silence_size = int(math.ceil(set_size * self.silence_percentage / 100))
+            silence_size = int(
+                math.ceil(set_size * self.parameters.silence_percentage / 100)
+            )
             for _ in range(silence_size):
                 self.data_index[set_index].append(
                     {"label": SILENCE_LABEL, "file": silence_wav_path}
                 )
             # Pick some unknowns to add to each partition of the data set.
             random.shuffle(unknown_index[set_index])
-            unknown_size = int(math.ceil(set_size * self.unknown_percentage / 100))
+            unknown_size = int(
+                math.ceil(set_size * self.parameters.unknown_percentage / 100)
+            )
             self.data_index[set_index].extend(unknown_index[set_index][:unknown_size])
 
     def check_audio_path(
@@ -262,7 +199,9 @@ class SpeechCommandsDataset:
                 continue
             all_words[word] = True
             set_index = self.which_set(
-                wav_path, self.validation_percentage, self.testing_percentage
+                wav_path,
+                self.parameters.validation_percentage,
+                self.parameters.testing_percentage,
             )
             # If it's a known class, store its detail, otherwise add it to the list
             # we'll use to train the unknown label.
@@ -272,29 +211,9 @@ class SpeechCommandsDataset:
                 unknown_index[set_index].append({"label": word, "file": wav_path})
 
     def set_size(self, mode):
-        """
-        Calculates the number of samples in the dataset partition.
-        Args:
-          mode: Which partition, must be 'training', 'validation', or 'testing'.
-        Returns:
-          Number of samples in the partition.
-        """
         return len(self.data_index[mode])
 
     def prepare_background_data(self):
-        """Searches a folder for background noise audio, and loads it into memory.
-        It's expected that the background audio samples will be in a subdirectory
-        named '_background_noise_' inside the 'data_dir' folder, as .wavs that match
-        the sample rate of the training data, but can be much longer in duration.
-        If the '_background_noise_' folder doesn't exist at all, this isn't an
-        error, it's just taken to mean that no background noise augmentation should
-        be used. If the folder does exist, but it's empty, that's treated as an
-        error.
-        Returns:
-          List of raw PCM-encoded audio samples of background noise.
-        Raises:
-          Exception: If files aren't found in the folder.
-        """
         self.background_data = []
 
         self.dataset_path: Path
@@ -307,7 +226,7 @@ class SpeechCommandsDataset:
             str(self.dataset_path), BACKGROUND_NOISE_DIR_NAME, "*.wav"
         )
         for wav_path in glob.glob(search_path):
-            wav_data, _ = librosa.load(wav_path, sr=self.sample_rate)
+            wav_data, _ = librosa.load(wav_path, sr=self.parameters.sample_rate)
             self.background_data.append(wav_data)
 
         if not self.background_data:
@@ -325,12 +244,12 @@ class SpeechCommandsDataset:
         # print(filename, label)
         # read audio with librosa
         audio, sample_rate = librosa.load(
-            filename.numpy().decode("UTF-8"), sr=self.sample_rate
+            filename.numpy().decode("UTF-8"), sr=self.parameters.sample_rate
         )
         # fix the audio length
-        audio = librosa.util.fix_length(audio, self.desired_samples)
+        audio = librosa.util.fix_length(audio, size=self.parameters.desired_samples)
         # preemphasis -> make the audio gain higher
-        audio = psf.sigproc.preemphasis(audio)
+        audio = preempashis(audio)
 
         # if the label is silence make the audio volume to 0
         if label.numpy() == SILENCE_INDEX:
@@ -338,7 +257,9 @@ class SpeechCommandsDataset:
 
         # audio augmentation
         # 1. time shifting
-        time_shift_amount = np.random.randint(-self.time_shift, self.time_shift)
+        time_shift_amount = np.random.randint(
+            -self.parameters.time_shift, self.parameters.time_shift
+        )
         if time_shift_amount > 0:
             time_shift_padding = [time_shift_amount, 0]
             time_shift_offset = 0
@@ -349,28 +270,34 @@ class SpeechCommandsDataset:
         padded_foreground = np.pad(audio, time_shift_padding, "constant")
 
         sliced_foreground = librosa.util.fix_length(
-            padded_foreground[time_shift_offset:], self.desired_samples
+            padded_foreground[time_shift_offset:], size=self.parameters.desired_samples
         )
 
         # 2. select noise type and randomly select how big the volume is
-        if self.use_background_noise or label.numpy() == SILENCE_INDEX:
+        if self.parameters.use_background_noise or label.numpy() == SILENCE_INDEX:
             background_index = np.random.randint(len(self.background_data))
             background_samples = self.background_data[background_index]
             background_offset = np.random.randint(
-                0, len(background_samples) - self.desired_samples
+                0, len(background_samples) - self.parameters.desired_samples
             )
             background_clipped = background_samples[
-                background_offset : (background_offset + self.desired_samples)
+                background_offset : (
+                    background_offset + self.parameters.desired_samples
+                )
             ]
-            background_reshaped = background_clipped.reshape(self.desired_samples)
+            background_reshaped = background_clipped.reshape(
+                self.parameters.desired_samples
+            )
             if label.numpy() == SILENCE_INDEX:
                 background_volume = np.random.uniform(0, 1)
-            elif np.random.uniform(0, 1) < self.background_frequency:
-                background_volume = np.random.uniform(0, self.background_volume)
+            elif np.random.uniform(0, 1) < self.parameters.background_frequency:
+                background_volume = np.random.uniform(
+                    0, self.parameters.background_volume
+                )
             else:
                 background_volume = 0
         else:
-            background_reshaped = np.zeros(self.desired_samples)
+            background_reshaped = np.zeros(self.parameters.desired_samples)
             background_volume = 0
 
         # adjust the noisy signal volume
@@ -379,4 +306,3 @@ class SpeechCommandsDataset:
         audio = np.add(background_mul, sliced_foreground)
         # print(audio.shape)
         return audio
-
