@@ -1,16 +1,17 @@
+import torch
 from loguru import logger
 from torch.utils.data import Dataset
 
 from kws.datasets.speech_commands import SpeechCommandsDataset
-from kws.settings import CONFIG_SPEECHCOMMANDS_DATASET_PATH, CONFIG_SPEECHCOMMANDS_PATH
 
 
 class SpeechCommandsLoader(Dataset):
-    def __init__(self, mode: str = "training") -> None:
-        self.dataset = SpeechCommandsDataset(
-            CONFIG_SPEECHCOMMANDS_PATH, CONFIG_SPEECHCOMMANDS_DATASET_PATH
-        )
+    def __init__(
+        self, dataset: SpeechCommandsDataset, device: str, mode: str = "training"
+    ) -> None:
         self.mode = mode
+        self.device = device
+        self.dataset = dataset
         if self.mode == "training":
             self.data = self.dataset.get_datafiles("training")
         else:
@@ -24,7 +25,6 @@ class SpeechCommandsLoader(Dataset):
         filename = self.data[index]["file"]
         label = self.data[index]["label"]
         audio = self.dataset.audio_transform(filename, label)
-        # move the audio to the cuda device
-        audio = audio.to(device)
+        audio = torch.tensor(audio).to(self.device)
         logger.info(audio.shape)
         return filename, label
