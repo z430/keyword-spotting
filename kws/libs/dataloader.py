@@ -7,7 +7,11 @@ from kws.datasets.speech_commands import SpeechCommandsDataset
 
 class SpeechCommandsLoader(Dataset):
     def __init__(
-        self, dataset: SpeechCommandsDataset, device: str, mode: str = "training"
+        self,
+        dataset: SpeechCommandsDataset,
+        device: str,
+        mode: str = "training",
+        features: str = "mfcc",
     ) -> None:
         self.mode = mode
         self.device = device
@@ -26,5 +30,4 @@ class SpeechCommandsLoader(Dataset):
         label = self.data[index]["label"]
         audio = self.dataset.audio_transform(filename, label)
         audio = torch.tensor(audio).to(self.device)
-        logger.info(audio.shape)
         return filename, label
