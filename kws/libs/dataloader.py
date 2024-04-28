@@ -1,6 +1,7 @@
 import torch
 from loguru import logger
 from torch.utils.data import Dataset
+import torchaudio
 
 from kws.datasets.speech_commands import SpeechCommandsDataset
 
@@ -31,3 +32,23 @@ class SpeechCommandsLoader(Dataset):
         audio = self.dataset.audio_transform(filename, label)
         audio = torch.tensor(audio).to(self.device)
         return filename, label
+
+    def signal2mfcc(
+        self,
+        signal: torch.Tensor,
+        sample_rate: int,
+        n_fft: int = 400,
+        hop_length: int = 160,
+        n_mfcc: int = 13,
+    ) -> torch.Tensor:
+        mfcc = torchaudio.transforms.MFCC(
+            sample_rate=sample_rate,
+            n_mfcc=n_mfcc,
+            melkwargs={
+                "n_fft": n_fft,
+                "hop_length": hop_length,
+                "mel_scale": "htk",
+                "n_mfcc": n_mfcc,
+            },
+        )
+        return mfcc(signal)
