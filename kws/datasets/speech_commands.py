@@ -16,7 +16,7 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 
-from kws.libs.signal_processings import preempashis
+from kws.libs.speech_features.base import preempashis
 from kws.utils.loader import load_yaml
 
 DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
