@@ -13,10 +13,10 @@ from typing import Dict, List
 
 import librosa
 import numpy as np
+import python_speech_features as psf
 from loguru import logger
 from pydantic import BaseModel
 
-from kws.libs.speech_features.base import preempashis
 from kws.utils.loader import load_yaml
 
 DATA_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
@@ -248,7 +248,7 @@ class SpeechCommandsDataset:
         # fix the audio length
         audio = librosa.util.fix_length(audio, size=self.parameters.desired_samples)
         # preemphasis -> make the audio gain higher
-        audio = preempashis(audio)
+        audio = psf.base.sigproc.preemphasis(audio)
 
         # if the label is silence make the audio volume to 0
         if label == SILENCE_INDEX:
