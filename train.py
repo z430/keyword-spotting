@@ -1,37 +1,14 @@
 import argparse
 from pathlib import Path
 
+import numpy as np
 
-from kws.datasets.speech_commands import SpeechCommandsDataset
-from kws.libs.dataloader import SpeechCommandsLoader, to_mfcc
-from kws.settings import CONFIG_SPEECHCOMMANDS_DATASET_PATH, CONFIG_SPEECHCOMMANDS_PATH
-
-FILE = Path(__file__).resolve()
+from kws.datasets.speech_commands import DatasetConfig, SpeechCommandDataset
 
 
-def train(device, train_loader, validation_loader):
-    # ...existing code...
-    signal = np.ones(16000)
-    features_shape = to_mfcc(
-        signal, winlen=train_loader.frame_length, winstep=train_loader.frame_step
-    ).shape
-    # Add training loop and validation logic here
-    # ...existing code...
-
-
-def main():
-    saved_weights_dir = ROOT_DIR / "saved_weights"
-    saved_weights_dir.mkdir(exist_ok=True)
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    dataset = SpeechCommandsDataset(
-        CONFIG_SPEECHCOMMANDS_PATH, CONFIG_SPEECHCOMMANDS_DATASET_PATH
-    )
-
-    train_loader = SpeechCommandsLoader(dataset, device, mode="training")
-    validation_loader = SpeechCommandsLoader(dataset, device, mode="validation")
-
-    train(device, train_loader, validation_loader)
+def train(opts):
+    config = DatasetConfig()
+    dataset = SpeechCommandDataset(config, Path("data/"))
 
 
 def parse_opt() -> argparse.Namespace:
@@ -43,7 +20,10 @@ def parse_opt() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    main()
+    opts = parse_opt()
+    train(opts)
+
+
 # background_volume: 0.1
 # background_frequency: 0.8
 # time_shift_ms: 50.0
