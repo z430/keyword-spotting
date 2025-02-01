@@ -1,0 +1,13 @@
+cython
+loguru
+numba
+numpy
+pillow
+requests
+scikit-learn
+scipy
+pydantic
+pytest
+pyyaml
+librosa
+python-speech-features
