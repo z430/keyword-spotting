@@ -41,5 +41,5 @@ class SpeechCommandsLoader(Dataset):
 
         signal = self.ap.transform(filename, label)
         signal = torch.tensor(signal).to(self.device)
-        signal = signal.view(-1)
+        # signal = signal.view(-1)
         return signal, label
