@@ -1,8 +1,3 @@
-from typing import Any, Dict, List
-
-import librosa
-import numpy as np
-import python_speech_features as psf
 import torch
 from loguru import logger
 from torch.utils.data import Dataset
@@ -22,11 +17,15 @@ class SpeechCommandsLoader(Dataset):
 
         if split == "training":
             self.data = dataset.get_data("training")
+            logger.info(f"Training data: {len(self.data)}")
         elif split == "validation":
             self.data = dataset.get_data("validation")
+            logger.info(f"Validation data: {len(self.data)}")
         elif split == "test":
             self.data = dataset.get_data("testing")
+            logger.info(f"Testing data: {len(self.data)}")
         else:
+            logger.error(f"Invalid split: {split}")
             raise ValueError(f"Invalid split: {split}")
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

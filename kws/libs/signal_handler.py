@@ -42,12 +42,16 @@ class AudioProcessor:
         """Load background noise data."""
         background_path = self.dataset_path / BACKGROUND_NOISE_DIR
         if not background_path.exists():
+            logger.warning(f"Background noise directory not found: {background_path}")
             return []
 
         background_data = []
         for wav_path in background_path.glob("*.wav"):
-            audio, _ = librosa.load(wav_path, sr=self.config.sample_rate)
-            background_data.append(audio)
+            try:
+                audio, _ = librosa.load(wav_path, sr=self.config.sample_rate)
+                background_data.append(audio)
+            except Exception as e:
+                logger.error(f"Error loading background noise file {wav_path}: {e}")
 
         if not background_data:
             logger.warning(f"No background noise files found in {background_path}")
