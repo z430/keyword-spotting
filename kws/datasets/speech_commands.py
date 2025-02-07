@@ -12,9 +12,6 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Dict, List
 
-import librosa
-import numpy as np
-import python_speech_features as psf
 from loguru import logger
 
 
@@ -23,16 +20,8 @@ class LabelIndex(IntEnum):
     UNKNOWN_WORD_INDEX = 1
 
 
+@dataclass
 class DatasetConfig:
-    # Audio parameters
-    background_volume: float = 0.1
-    background_frequency: float = 0.8
-    time_shift_ms: float = 100
-    sample_rate: int = 16000
-    clip_duration_ms: int = 1000
-    use_background_noise: bool = True
-
-    # Dataset split parameters
     silence_percentage: float = 10
     unknown_percentage: float = 10
     testing_percentage: float = 10
@@ -49,83 +38,6 @@ class DatasetConfig:
         "stop",
         "go",
     ]
-
-    @property
-    def time_shift(self) -> int:
-        return int((self.time_shift_ms * self.sample_rate) / 1000)
-
-    @property
-    def desired_samples(self) -> int:
-        return int(self.sample_rate * self.clip_duration_ms / 1000)
-
-
-class AudioProcessor:
-    def __init__(self, config: DatasetConfig):
-        self.config = config
-
-    def transform(
-        self, audio: np.ndarray, label: int, background_data: List[np.ndarray]
-    ) -> np.ndarray:
-        """Apply audio transformations including time shifting and background noise."""
-        # Fix audio length
-        audio = librosa.util.fix_length(audio, size=self.config.desired_samples)
-        audio = psf.base.sigproc.preemphasis(audio)
-
-        # Handle silence
-        if label == LabelIndex.SILENCE_INDEX:
-            audio = np.zeros_like(audio)
-
-        # Apply time shifting
-        audio = self._apply_time_shift(audio)
-
-        # Add background noise
-        if self.config.use_background_noise or label == LabelIndex.SILENCE_INDEX:
-            audio = self._add_background_noise(audio, label, background_data)
-
-        return audio
-
-    def _apply_time_shift(self, audio: np.ndarray) -> np.ndarray:
-        """Apply random time shifting to audio."""
-        time_shift_amount = np.random.randint(
-            -self.config.time_shift, self.config.time_shift
-        )
-
-        if time_shift_amount > 0:
-            padding = [time_shift_amount, 0]
-            offset = 0
-        else:
-            padding = [0, -time_shift_amount]
-            offset = -time_shift_amount
-
-        padded_audio = np.pad(audio, padding, "constant")
-        return librosa.util.fix_length(
-            padded_audio[offset:], size=self.config.desired_samples
-        )
-
-    def _add_background_noise(
-        self, audio: np.ndarray, label: int, background_data: List[np.ndarray]
-    ) -> np.ndarray:
-        """Add background noise to audio."""
-        if not background_data:
-            return audio
-
-        background_samples = random.choice(background_data)
-        background_offset = np.random.randint(
-            0, len(background_samples) - self.config.desired_samples
-        )
-        background_clip = background_samples[
-            background_offset : background_offset + self.config.desired_samples
-        ]
-
-        # Determine background volume
-        if label == LabelIndex.SILENCE_INDEX:
-            background_volume = np.random.uniform(0, 1)
-        elif np.random.uniform(0, 1) < self.config.background_frequency:
-            background_volume = np.random.uniform(0, self.config.background_volume)
-        else:
-            background_volume = 0
-
-        return audio + (background_clip * background_volume)
 
 
 class SpeechCommandDataset:
@@ -148,14 +60,12 @@ class SpeechCommandDataset:
         """
         self.config = config
         self.root_dir = root_dir
-        self.audio_processor = AudioProcessor(config)
 
         # Initialize dataset
         self._download_and_extract()
         self.words_list = [self.SILENCE_LABEL, self.UNKNOWN_LABEL] + config.wanted_words
         self.word_to_index = self._create_word_to_index()
         self.data_index = self._prepare_data_index()
-        self.background_data = self._load_background_data()
 
     def _download_and_extract(self) -> None:
         """Download and extract the dataset if not already present."""
@@ -264,31 +174,9 @@ class SpeechCommandDataset:
             random.shuffle(unknown_index[split])
             data_index[split].extend(unknown_index[split][:unknown_size])
 
-    def _load_background_data(self) -> List[np.ndarray]:
-        """Load background noise data."""
-        background_path = self.root_dir / self.BACKGROUND_NOISE_DIR
-        if not background_path.exists():
-            return []
-
-        background_data = []
-        for wav_path in background_path.glob("*.wav"):
-            audio, _ = librosa.load(wav_path, sr=self.config.sample_rate)
-            background_data.append(audio)
-
-        if not background_data:
-            logger.warning(f"No background noise files found in {background_path}")
-
-        return background_data
-
     def get_data(self, split: str) -> List[Dict]:
         """Get data for a specific split."""
         return self.data_index[split]
-
-    def get_audio(self, filename: str, label: str) -> np.ndarray:
-        """Load and transform audio file."""
-        audio, _ = librosa.load(filename, sr=self.config.sample_rate)
-        label_index = self.word_to_index[label]
-        return self.audio_processor.transform(audio, label_index, self.background_data)
 
     def __len__(self) -> int:
         """Get total number of samples."""
