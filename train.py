@@ -4,11 +4,26 @@ from pathlib import Path
 import numpy as np
 
 from kws.datasets.speech_commands import DatasetConfig, SpeechCommandDataset
+from kws.libs.signal_handler import AudioConfig, AudioProcessor
+from kws.libs.dataloader import SpeechCommandsLoader
 
 
 def train(opts):
     config = DatasetConfig()
     dataset = SpeechCommandDataset(config, Path("data/"))
+
+    # audio processor
+    audio_config = AudioConfig()
+    audio_processor = AudioProcessor(dataset.root_dir, audio_config)
+
+    # dataloader
+    train_loader = SpeechCommandsLoader(dataset, audio_processor, "training")
+    val_loader = SpeechCommandsLoader(dataset, audio_processor, "validation")
+
+    for i, (signal, label) in enumerate(train_loader):  # type: ignore
+        print(signal.shape, label)
+        if i == 10:
+            break
 
 
 def parse_opt() -> argparse.Namespace:
@@ -22,16 +37,3 @@ def parse_opt() -> argparse.Namespace:
 if __name__ == "__main__":
     opts = parse_opt()
     train(opts)
-
-
-# background_volume: 0.1
-# background_frequency: 0.8
-# time_shift_ms: 50.0
-# sample_rate: 16000
-# clip_duration_ms: 1000
-# use_background_noise: True
-
-# silence_percentage: 10.0
-# unknown_percentage: 10.0
-# testing_percentage: 10.0
-# validation_percentage: 10.0

@@ -1,28 +1,35 @@
+from typing import Any, Dict, List
+
+import librosa
+import numpy as np
 import python_speech_features as psf
 import torch
 from loguru import logger
 from torch.utils.data import Dataset
 
-from kws.datasets.speech_commands import SpeechCommandsDataset
+from kws.datasets.speech_commands import SpeechCommandDataset
+from kws.libs.signal_handler import AudioProcessor
 
 
 class SpeechCommandsLoader(Dataset):
     def __init__(
         self,
-        dataset: SpeechCommandsDataset,
-        device: str,
-        mode: str = "training",
+        dataset: SpeechCommandDataset,
+        audio_processor: AudioProcessor,
+        split: str = "training",
     ) -> None:
-        self.mode = mode
-        self.device = device
-        self.dataset = dataset
-        self.frame_length = 40 / 1000
-        self.frame_step = 40 / 1000
-        logger.info(f"Frame length: {self.frame_length}, Frame step: {self.frame_step}")
-        if self.mode == "training":
-            self.data = self.dataset.get_datafiles("training")
+        self.ap = audio_processor
+
+        if split == "training":
+            self.data = dataset.get_data("training")
+        elif split == "validation":
+            self.data = dataset.get_data("validation")
+        elif split == "test":
+            self.data = dataset.get_data("testing")
         else:
-            self.data = self.dataset.get_datafiles("validation")
+            raise ValueError(f"Invalid split: {split}")
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         super().__init__()
 
     def __len__(self) -> int:
@@ -31,29 +38,8 @@ class SpeechCommandsLoader(Dataset):
     def __getitem__(self, index):
         filename = self.data[index]["file"]
         label = self.data[index]["label"]
-        audio = self.dataset.audio_transform(filename, label)
-        signal = to_mfcc(audio, winlen=self.frame_length, winstep=self.frame_step)
+
+        signal = self.ap.transform(filename, label)
         signal = torch.tensor(signal).to(self.device)
         signal = signal.view(-1)
         return signal, label
-
-
-def to_mfcc(
-    signal,
-    samplerate=16000,
-    numcep=10,
-    nfft=512,
-    winlen=0.025,
-    winstep=0.01,
-    nfilt=26,
-):
-    nfft = max(512, int(winlen * samplerate))
-    return psf.mfcc(
-        signal,
-        samplerate=samplerate,
-        numcep=numcep,
-        nfft=nfft,
-        winlen=winlen,
-        winstep=winstep,
-        nfilt=nfilt,
-    )

@@ -7,7 +7,7 @@ import re
 import sys
 import tarfile
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 from typing import Dict, List
@@ -26,18 +26,20 @@ class DatasetConfig:
     unknown_percentage: float = 10
     testing_percentage: float = 10
     validation_percentage: float = 10
-    wanted_words: List[str] = [
-        "yes",
-        "no",
-        "up",
-        "down",
-        "left",
-        "right",
-        "on",
-        "off",
-        "stop",
-        "go",
-    ]
+    wanted_words: List[str] = field(
+        default_factory=lambda: [
+            "yes",
+            "no",
+            "up",
+            "down",
+            "left",
+            "right",
+            "on",
+            "off",
+            "stop",
+            "go",
+        ]
+    )
 
 
 class SpeechCommandDataset:

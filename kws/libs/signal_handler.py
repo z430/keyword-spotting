@@ -9,6 +9,7 @@ import python_speech_features as psf
 from loguru import logger
 
 BACKGROUND_NOISE_DIR = "_background_noise_"
+SILENCE_INDEX = 0
 
 
 @dataclass
@@ -19,6 +20,8 @@ class AudioConfig:
     sample_rate: int = 16000
     clip_duration_ms: int = 1000
     use_background_noise: bool = True
+    frame_length = 0.025
+    frame_step = 0.01
 
     @property
     def time_shift(self) -> int:
@@ -30,11 +33,10 @@ class AudioConfig:
 
 
 class AudioProcessor:
-    def __init__(self, dataset_path: Path, config: AudioConfig, silence_index: int):
+    def __init__(self, dataset_path: Path, config: AudioConfig):
         self.config = config
-        self.background_data = self._load_background_data()
         self.dataset_path = dataset_path
-        self.silence_index = silence_index
+        self.background_data = self._load_background_data()
 
     def _load_background_data(self) -> List[np.ndarray]:
         """Load background noise data."""
@@ -52,25 +54,28 @@ class AudioProcessor:
 
         return background_data
 
-    def transform(
-        self, audio: np.ndarray, label: int, background_data: List[np.ndarray]
-    ) -> np.ndarray:
+    def transform(self, filepath: str, label: int) -> np.ndarray:
         """Apply audio transformations including time shifting and background noise."""
+        audio, _ = librosa.load(filepath, sr=self.config.sample_rate)
         # Fix audio length
         audio = librosa.util.fix_length(audio, size=self.config.desired_samples)
         audio = psf.base.sigproc.preemphasis(audio)
 
         # Handle silence
-        if label == self.silence_index:
+        if label == SILENCE_INDEX:
             audio = np.zeros_like(audio)
 
         # Apply time shifting
         audio = self._apply_time_shift(audio)
 
         # Add background noise
-        if self.config.use_background_noise or label == self.silence_index:
-            audio = self._add_background_noise(audio, label, background_data)
+        if self.config.use_background_noise or label == SILENCE_INDEX:
+            audio = self._add_background_noise(audio, label, self.background_data)
 
+        # transform to feature
+        audio = self.to_mfcc(
+            audio, winlen=self.config.frame_length, winstep=self.config.frame_step
+        )
         return audio
 
     def _apply_time_shift(self, audio: np.ndarray) -> np.ndarray:
@@ -107,7 +112,7 @@ class AudioProcessor:
         ]
 
         # Determine background volume
-        if label == self.silence_index:
+        if label == SILENCE_INDEX:
             background_volume = np.random.uniform(0, 1)
         elif np.random.uniform(0, 1) < self.config.background_frequency:
             background_volume = np.random.uniform(0, self.config.background_volume)
@@ -115,3 +120,24 @@ class AudioProcessor:
             background_volume = 0
 
         return audio + (background_clip * background_volume)
+
+    def to_mfcc(
+        self,
+        signal,
+        samplerate=16000,
+        numcep=10,
+        nfft=512,
+        winlen=0.025,
+        winstep=0.01,
+        nfilt=26,
+    ):
+        nfft = max(512, int(winlen * samplerate))
+        return psf.mfcc(
+            signal,
+            samplerate=samplerate,
+            numcep=numcep,
+            nfft=nfft,
+            winlen=winlen,
+            winstep=winstep,
+            nfilt=nfilt,
+        )
