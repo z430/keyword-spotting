@@ -14,6 +14,7 @@ class SpeechCommandsLoader(Dataset):
         split: str = "training",
     ) -> None:
         self.ap = audio_processor
+        self.word_to_index = dataset.word_to_index
 
         if split == "training":
             self.data = dataset.get_data("training")
@@ -37,8 +38,9 @@ class SpeechCommandsLoader(Dataset):
     def __getitem__(self, index):
         filename = self.data[index]["file"]
         label = self.data[index]["label"]
+        label = self.word_to_index[label]
 
         signal = self.ap.transform(filename, label)
         signal = torch.tensor(signal).to(self.device)
-        # signal = signal.view(-1)
+        signal = signal.unsqueeze(0)
         return signal, label
