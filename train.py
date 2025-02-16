@@ -53,22 +53,30 @@ class Trainer:
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
 
-                    tepoch.set_postfix(
-                        {
-                            "Loss": f"{running_loss / (tepoch.format_dict['n'] + 1):.4f}",
-                            "Accuracy": f"{100 * correct / total:.2f}%",
-                        }
+                    loss = running_loss / (tepoch.format_dict["n"] + 1)
+                    tepoch.set_postfix({"Loss": f"{loss:.4f}"})
+                    Logger.current_logger().report_scalar(
+                        f"train/loss",
+                        "batch loss",
+                        value=loss,
+                        iteration=tepoch.format_dict["n"],
                     )
 
             epoch_loss = running_loss / len(self.train_loader)
             epoch_accuracy = 100 * correct / total
-            print(
-                f"Epoch {epoch + 1}/{epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_accuracy:.2f}%"
+            Logger.current_logger().report_scalar(
+                f"train/loss", "epoch loss", value=epoch_loss, iteration=epoch
+            )
+            Logger.current_logger().report_scalar(
+                f"train/accuracy", "epoch acc", value=epoch_accuracy, iteration=epoch
             )
 
-            self.evaluate()
+            self.evaluate(epoch)
 
-    def evaluate(self):
+        # Save model
+        torch.save(self.model.state_dict(), "model.pth")
+
+    def evaluate(self, epoch):
         self.model.eval()
         correct = 0
         total = 0
@@ -84,6 +92,9 @@ class Trainer:
 
         print(
             f"Accuracy of the network on the validation set: {100 * correct / total} %"
+        )
+        Logger.current_logger().report_scalar(
+            f"val/accuracy", "Val Acc", value=100 * correct / total, iteration=epoch
         )
 
 
@@ -128,6 +139,8 @@ def train(opts):
 
     trainer = Trainer(model, train_loader, val_loader)
     trainer.train(100)
+
+    task.update_output_model("model.pth")
 
 
 def parse_opt() -> argparse.Namespace:
