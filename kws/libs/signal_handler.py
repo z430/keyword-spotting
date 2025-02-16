@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import List
 
 import librosa
+import torch
+
+# import torchaudio.transforms as T
 import numpy as np
 import python_speech_features as psf
 from loguru import logger
@@ -63,7 +66,7 @@ class AudioProcessor:
         audio, _ = librosa.load(filepath, sr=self.config.sample_rate)
         # Fix audio length
         audio = librosa.util.fix_length(audio, size=self.config.desired_samples)
-        audio = psf.base.sigproc.preemphasis(audio)
+        # audio = psf.base.sigproc.preemphasis(audio)
 
         # Handle silence
         if label == SILENCE_INDEX:
@@ -87,18 +90,11 @@ class AudioProcessor:
         time_shift_amount = np.random.randint(
             -self.config.time_shift, self.config.time_shift
         )
-
-        if time_shift_amount > 0:
-            padding = [time_shift_amount, 0]
-            offset = 0
-        else:
-            padding = [0, -time_shift_amount]
-            offset = -time_shift_amount
+        padding = [max(0, time_shift_amount), max(0, -time_shift_amount)]
+        offset = max(0, -time_shift_amount)
 
         padded_audio = np.pad(audio, padding, "constant")
-        return librosa.util.fix_length(
-            padded_audio[offset:], size=self.config.desired_samples
-        )
+        return padded_audio[offset : offset + self.config.desired_samples]
 
     def _add_background_noise(
         self, audio: np.ndarray, label: int, background_data: List[np.ndarray]
@@ -108,12 +104,18 @@ class AudioProcessor:
             return audio
 
         background_samples = random.choice(background_data)
-        background_offset = np.random.randint(
-            0, len(background_samples) - self.config.desired_samples
-        )
         background_clip = background_samples[
-            background_offset : background_offset + self.config.desired_samples
-        ]
+            np.random.randint(
+                0, len(background_samples) - self.config.desired_samples
+            ) :
+        ][: self.config.desired_samples]
+
+        # background_offset = np.random.randint(
+        #     0, len(background_samples) - self.config.desired_samples
+        # )
+        # background_clip = background_samples[
+        #     background_offset : background_offset + self.config.desired_samples
+        # ]
 
         # Determine background volume
         if label == SILENCE_INDEX:

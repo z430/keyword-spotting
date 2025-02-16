@@ -41,6 +41,6 @@ class SpeechCommandsLoader(Dataset):
         label = self.word_to_index[label]
 
         signal = self.ap.transform(filename, label)
-        signal = torch.tensor(signal).to(self.device)
+        signal = torch.tensor(signal)
         signal = signal.unsqueeze(0)
         return signal, label

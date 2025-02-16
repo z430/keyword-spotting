@@ -1,10 +1,13 @@
 import argparse
 from pathlib import Path
+from dataclasses import asdict
 
 from loguru import logger
 from torch.utils.data import DataLoader
 import torch
 from tqdm import tqdm
+from clearml import Task, Logger
+from datetime import datetime
 
 from kws.datasets.speech_commands import DatasetConfig, SpeechCommandDataset
 from kws.libs.dataloader import SpeechCommandsLoader
@@ -95,12 +98,24 @@ def train(opts):
         SpeechCommandsLoader(dataset, audio_processor, "training"),
         batch_size=1028,
         shuffle=True,
+        num_workers=8,
+        pin_memory=True,
     )
     val_loader = DataLoader(
         SpeechCommandsLoader(dataset, audio_processor, "validation"),
         batch_size=1028,
         shuffle=True,
+        num_workers=8,
+        pin_memory=True,
     )
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H-%M")
+    task = Task.init(
+        project_name="KeywordSpotting",
+        task_name=f"{timestamp}-KWS-Train-DepthwiseSeparableConv",
+    )
+
+    task.connect(asdict(config))
 
     sample = next(iter(train_loader))
     input_shape = sample[0].shape
@@ -112,7 +127,7 @@ def train(opts):
     )
 
     trainer = Trainer(model, train_loader, val_loader)
-    trainer.train(10)
+    trainer.train(100)
 
 
 def parse_opt() -> argparse.Namespace:
