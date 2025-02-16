@@ -6,7 +6,7 @@ from loguru import logger
 from torch.utils.data import DataLoader
 import torch
 from tqdm import tqdm
-from clearml import Task, Logger
+from clearml import Task, Logger, OutputModel
 from datetime import datetime
 
 from kws.datasets.speech_commands import DatasetConfig, SpeechCommandDataset
@@ -126,9 +126,10 @@ def train(opts):
         task_name=f"{timestamp}-KWS-Train-DepthwiseSeparableConv",
     )
 
-    task.connect(asdict(config))
+    task.connect(asdict(config), name="dataset_config")
+    task.connect(asdict(audio_config), name="audio_config")
 
-    sample = next(iter(train_loader))
+    sample = next(iter(train_loader), "dataset_config")
     input_shape = sample[0].shape
 
     logger.info(f"Training with input shape: {input_shape}")
@@ -138,7 +139,7 @@ def train(opts):
     )
 
     trainer = Trainer(model, train_loader, val_loader)
-    trainer.train(100)
+    trainer.train(10)
 
     task.update_output_model("model.pth")
 
