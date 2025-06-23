@@ -1,38 +1,14 @@
-import random
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List
+"""
+This module is maintained for backward compatibility.
+New code should use kws.libs.audio_processor instead.
+"""
 
-import librosa
-import torch
-
-# import torchaudio.transforms as T
-import numpy as np
-import python_speech_features as psf
-from loguru import logger
-
-BACKGROUND_NOISE_DIR = "_background_noise_"
-SILENCE_INDEX = 0
-
-
-@dataclass
-class AudioConfig:
-    background_volume: float = 0.1
-    background_frequency: float = 0.8
-    time_shift_ms: float = 100
-    sample_rate: int = 16000
-    clip_duration_ms: int = 1000
-    use_background_noise: bool = True
-    frame_length = 0.025
-    frame_step = 0.01
-
-    @property
-    def time_shift(self) -> int:
-        return int((self.time_shift_ms * self.sample_rate) / 1000)
-
-    @property
-    def desired_samples(self) -> int:
-        return int(self.sample_rate * self.clip_duration_ms / 1000)
+from kws.libs.audio_processor import (
+    AudioConfig,
+    AudioProcessor,
+    BACKGROUND_NOISE_DIR,
+    SILENCE_INDEX,
+)
 
 
 class AudioProcessor:
