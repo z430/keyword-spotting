@@ -3,11 +3,17 @@ This module is maintained for backward compatibility.
 New code should use kws.libs.audio_processor instead.
 """
 
+from pathlib import Path
+from loguru import logger
+
+import numpy as np
+import random
+
 from kws.libs.audio_processor import (
-    AudioConfig,
-    AudioProcessor,
     BACKGROUND_NOISE_DIR,
     SILENCE_INDEX,
+    AudioConfig,
+    AudioProcessor,
 )
 
 
@@ -17,7 +23,7 @@ class AudioProcessor:
         self.dataset_path = dataset_path
         self.background_data = self._load_background_data()
 
-    def _load_background_data(self) -> List[np.ndarray]:
+    def _load_background_data(self) -> list[np.ndarray]:
         """Load background noise data."""
         background_path = self.dataset_path / BACKGROUND_NOISE_DIR
         if not background_path.exists():
@@ -73,7 +79,7 @@ class AudioProcessor:
         return padded_audio[offset : offset + self.config.desired_samples]
 
     def _add_background_noise(
-        self, audio: np.ndarray, label: int, background_data: List[np.ndarray]
+        self, audio: np.ndarray, label: int, background_data: list[np.ndarray]
     ) -> np.ndarray:
         """Add background noise to audio."""
         if not background_data:
